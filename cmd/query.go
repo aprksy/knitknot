@@ -138,22 +138,22 @@ func applyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 		switch method.Name.Value {
 		case "Find":
 			if len(method.Arguments) != 1 {
-				return nil, fmt.Errorf("Find takes 1 arg")
+				return nil, fmt.Errorf("find takes 1 arg")
 			}
 			if str, ok := method.Arguments[0].(*dsl.StringLiteral); ok {
 				builder = engine.Find(str.Value)
 			} else {
-				return nil, fmt.Errorf("Find requires string")
+				return nil, fmt.Errorf("find requires string")
 			}
 
 		case "Has":
 			if len(method.Arguments) != 2 {
-				return nil, fmt.Errorf("Has takes 2 args")
+				return nil, fmt.Errorf("has takes 2 args")
 			}
 			rel, ok1 := method.Arguments[0].(*dsl.StringLiteral)
 			val, ok2 := method.Arguments[1].(*dsl.StringLiteral)
 			if !ok1 || !ok2 {
-				return nil, fmt.Errorf("Has requires two strings")
+				return nil, fmt.Errorf("has requires two strings")
 			}
 			if builder != nil {
 				builder = builder.Has(rel.Value, val.Value)
@@ -161,7 +161,7 @@ func applyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 
 		case "Where":
 			if len(method.Arguments) != 3 {
-				return nil, fmt.Errorf("Where takes 3 args")
+				return nil, fmt.Errorf("where takes 3 args")
 			}
 			field, ok1 := method.Arguments[0].(*dsl.StringLiteral)
 			op, ok2 := method.Arguments[1].(*dsl.StringLiteral)
@@ -171,10 +171,10 @@ func applyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 			} else if num, ok := method.Arguments[2].(*dsl.NumberLiteral); ok {
 				value = num.Value
 			} else {
-				return nil, fmt.Errorf("Where value must be string or number")
+				return nil, fmt.Errorf("where value must be string or number")
 			}
 			if !ok1 || !ok2 {
-				return nil, fmt.Errorf("Where field and op must be strings")
+				return nil, fmt.Errorf("where field and op must be strings")
 			}
 			if builder != nil {
 				builder = builder.Where(field.Value, op.Value, value)
@@ -182,12 +182,12 @@ func applyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 
 		case "Limit":
 			if len(method.Arguments) != 1 {
-				return nil, fmt.Errorf("Limit takes 1 arg")
+				return nil, fmt.Errorf("limit takes 1 arg")
 			}
 			if num, ok := method.Arguments[0].(*dsl.NumberLiteral); ok && builder != nil {
 				builder = builder.Limit(num.Value)
 			} else {
-				return nil, fmt.Errorf("Limit requires number")
+				return nil, fmt.Errorf("limit requires number")
 			}
 
 		default:

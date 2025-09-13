@@ -1,0 +1,99 @@
+package cmd
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/aprksy/knitknot/pkg/graph"
+	"github.com/aprksy/knitknot/pkg/storage/inmem"
+	"github.com/chzyer/readline" // lightweight line reader
+	"github.com/spf13/cobra"
+)
+
+var replCmd = &cobra.Command{
+	Use:   "repl",
+	Short: "Start interactive KnitKnot shell",
+	Long:  `Interactive mode to run and explain queries.`,
+	RunE:  runRepl,
+}
+
+func init() {
+	RootCmd.AddCommand(replCmd)
+}
+
+func runRepl(cmd *cobra.Command, args []string) error {
+	// Setup readline
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          "knitknot> ",
+		HistoryFile:     ".knitknot_history",
+		AutoComplete:    nil,
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+	})
+	if err != nil {
+		return err
+	}
+	defer rl.Close()
+
+	fmt.Println("Welcome to KnitKnot REPL! Type a query or 'help'.")
+	fmt.Println("Press Ctrl+C to exit.")
+
+	// Initialize engine
+	storage := inmem.New()
+	engine := graph.NewGraphEngine(storage)
+	seedSampleData(engine) // same test data
+
+	ctx := context.Background()
+
+	for {
+		line, err := rl.Readline()
+		if err != nil { // io.EOF or interrupt
+			break
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		if err := handleLine(ctx, line, engine, rl.Stdout()); err != nil {
+			fmt.Fprintf(rl.Stderr(), "Error: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+func handleLine(ctx context.Context, input string, engine *graph.GraphEngine, out io.Writer) error {
+	input = strings.TrimSpace(input)
+	lower := strings.ToLower(input)
+
+	switch {
+	case lower == "exit", lower == "quit":
+		fmt.Fprintln(out, "Goodbye!")
+		os.Exit(0)
+
+	case lower == "help":
+		printHelp(out)
+
+	case strings.HasPrefix(lower, "explain"):
+		return execExplain(ctx, input[7:], engine, out)
+
+	default:
+		return execQuery(ctx, input, engine, out)
+	}
+	return nil
+}
+
+func printHelp(out io.Writer) {
+	fmt.Fprintln(out, "KnitKnot REPL Commands:")
+	fmt.Fprintln(out, "  Find('Label').Where(...)        - Run a query")
+	fmt.Fprintln(out, "  EXPLAIN Find(...)               - Show query plan")
+	fmt.Fprintln(out, "  explain <query>                 - Same, case-insensitive")
+	fmt.Fprintln(out, "  help                            - Show this message")
+	fmt.Fprintln(out, "  exit / quit                     - Leave the shell")
+	fmt.Fprintln(out, "")
+}
