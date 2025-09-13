@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"sync"
 
 	"github.com/aprksy/knitknot/pkg/ports/storage"
@@ -89,6 +90,16 @@ func (s *Storage) GetAllNodes() []*types.Node {
 	return list
 }
 
+func (s *Storage) GetAllEdges() []*types.Edge {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	list := make([]*types.Edge, 0, len(s.edges))
+	for _, e := range s.edges {
+		list = append(list, e)
+	}
+	return list
+}
+
 func (s *Storage) GetEdgesFrom(from string) []*types.Edge {
 	return s.findEdges(func(e *types.Edge) bool { return e.From == from })
 }
@@ -108,6 +119,47 @@ func (s *Storage) findEdges(match func(*types.Edge) bool) []*types.Edge {
 	for _, e := range s.edges {
 		if match(e) {
 			result = append(result, e)
+		}
+	}
+	return result
+}
+
+func (s *Storage) GetNodesIn(subgraph string) []*types.Node {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var result []*types.Node
+	for _, n := range s.nodes {
+		if slices.Contains(n.Subgraphs, subgraph) {
+			result = append(result, n)
+		}
+	}
+	return result
+}
+
+func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var result []*types.Edge
+	for _, e := range s.edges {
+		// Edge belongs to subgraph if both ends do AND edge hasn't been removed
+		fromNode, ok1 := s.nodes[e.From]
+		toNode, ok2 := s.nodes[e.To]
+		if !ok1 || !ok2 {
+			continue
+		}
+		if slices.Contains(fromNode.Subgraphs, subgraph) &&
+			slices.Contains(toNode.Subgraphs, subgraph) {
+			// Optionally: ensure edge itself includes subgraph
+			if slices.Contains(e.Subgraphs, subgraph) {
+				result = append(result, e)
+			} else {
+				// Auto-inherit
+				cp := *e
+				cp.Subgraphs = append(cp.Subgraphs, subgraph)
+				result = append(result, &cp)
+			}
 		}
 	}
 	return result

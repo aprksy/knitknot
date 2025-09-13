@@ -21,6 +21,7 @@ var replCmd = &cobra.Command{
 }
 
 func init() {
+	replCmd.Flags().StringVar(&globalFlags.subgraph, "subgraph", "", "Run query within a subgraph context")
 	RootCmd.AddCommand(replCmd)
 }
 
@@ -44,6 +45,10 @@ func runRepl(cmd *cobra.Command, args []string) error {
 	// Initialize engine
 	storage := inmem.New()
 	engine := graph.NewGraphEngine(storage)
+	if globalFlags.subgraph != "" {
+		engine = engine.WithSubgraph(globalFlags.subgraph)
+	}
+
 	seedSampleData(engine) // same test data
 
 	ctx := context.Background()

@@ -8,7 +8,10 @@ type StorageEngine interface {
 	AddEdge(from, to, kind string, props map[string]any) error
 	GetNode(id string) (*types.Node, bool)
 	GetAllNodes() []*types.Node
+	GetAllEdges() []*types.Edge
 	GetEdgesFrom(from string) []*types.Edge
 	GetEdgesTo(to string) []*types.Edge
 	GetEdgesByKind(kind string) []*types.Edge
+	GetNodesIn(subgraph string) []*types.Node
+	GetEdgesIn(subgraph string) []*types.Edge
 }

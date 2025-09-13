@@ -18,67 +18,25 @@ func NewDefaultQueryEngine() *DefaultQueryEngine {
 	return &DefaultQueryEngine{}
 }
 
-// func (qe *DefaultQueryEngine) Execute(
-// 	ctx context.Context,
-// 	storage storage.StorageEngine,
-// 	plan *query.QueryPlan,
-// ) (query.ResultSet, error) {
-
-// 	results := make([]map[string]*types.Node, 0)
-
-// 	// If no nodes in pattern, return all?
-// 	if len(plan.Nodes) == 0 {
-// 		return &ResultSet{items: results}, nil
-// 	}
-
-// 	// Start with first node
-// 	for _, nodePattern := range plan.Nodes {
-// 		candidates := filterNodesByLabel(storage.GetAllNodes(), nodePattern.Label)
-// 		for _, node := range candidates {
-// 			row := map[string]*types.Node{
-// 				nodePattern.Var: node,
-// 			}
-
-// 			// Apply filters like "u.name = 'Alice'"
-// 			matched := true
-// 			for _, f := range plan.Filters {
-// 				if strings.HasPrefix(f.Field, nodePattern.Var+".") {
-// 					prop := f.Field[len(nodePattern.Var)+1:]
-// 					val, ok := node.Props[prop]
-// 					if !ok {
-// 						matched = false
-// 						break
-// 					}
-// 					if !compare(val, f.Op, f.Value) {
-// 						matched = false
-// 						break
-// 					}
-// 				}
-// 			}
-// 			if matched {
-// 				results = append(results, row)
-// 			}
-// 		}
-// 	}
-
-// 	// Apply limit
-// 	if plan.LimitVal != nil && len(results) > *plan.LimitVal {
-// 		results = results[:*plan.LimitVal]
-// 	}
-
-// 	return &ResultSet{items: results}, nil
-// }
-
 func (qe *DefaultQueryEngine) Execute(
 	ctx context.Context,
 	storage storage.StorageEngine,
 	plan *query.QueryPlan,
 ) (query.ResultSet, error) {
-	var results []map[string]*types.Node
+	var (
+		results    []map[string]*types.Node
+		candidates []*types.Node
+	)
+
+	if plan.Subgraph != "" {
+		candidates = storage.GetNodesIn(plan.Subgraph)
+	} else {
+		candidates = storage.GetAllNodes()
+	}
 
 	// Case 1: No nodes specified
 	if len(plan.Nodes) == 0 {
-		nodes := storage.GetAllNodes()
+		nodes := candidates
 		for _, node := range nodes {
 			row := map[string]*types.Node{
 				"n": node,
@@ -94,7 +52,7 @@ func (qe *DefaultQueryEngine) Execute(
 
 	// Case 2: Normal pattern matching
 	for _, nodePattern := range plan.Nodes {
-		candidates := filterNodesByLabel(storage.GetAllNodes(), nodePattern.Label)
+		candidates = filterNodesByLabel(candidates, nodePattern.Label)
 		for _, node := range candidates {
 			row := map[string]*types.Node{
 				nodePattern.Var: node,

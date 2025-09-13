@@ -21,6 +21,9 @@ func (ge *GraphEngine) Find(label string) *Builder {
 		plan:    &query.QueryPlan{},
 		nextVar: 0,
 	}
+	if ge.defaultSubgraph != "" {
+		b.plan.Subgraph = ge.defaultSubgraph
+	}
 	return b.MatchNode("n", label)
 }
 
@@ -63,6 +66,11 @@ func (b *Builder) RelatedTo(targetVar, edgeKind, sourceVar string) *Builder {
 		To:   targetVar,
 		Kind: edgeKind,
 	})
+	return b
+}
+
+func (b *Builder) In(subgraph string) *Builder {
+	b.plan.Subgraph = subgraph
 	return b
 }
 

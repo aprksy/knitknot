@@ -11,8 +11,9 @@ import (
 
 // GraphEngine is the top-level orchestrator that combines storage and query logic.
 type GraphEngine struct {
-	storage storage.StorageEngine
-	query   query.QueryEngine
+	storage         storage.StorageEngine
+	query           query.QueryEngine
+	defaultSubgraph string
 }
 
 // NewGraphEngine creates a new engine with default components.
@@ -26,6 +27,11 @@ func NewGraphEngine(storage storage.StorageEngine) *GraphEngine {
 // WithQueryEngine allows replacing the query engine (for testing/plugins).
 func (ge *GraphEngine) WithQueryEngine(qe query.QueryEngine) *GraphEngine {
 	ge.query = qe
+	return ge
+}
+
+func (ge *GraphEngine) WithSubgraph(name string) *GraphEngine {
+	ge.defaultSubgraph = name
 	return ge
 }
 

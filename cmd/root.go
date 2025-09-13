@@ -7,6 +7,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var globalFlags struct {
+	subgraph string
+}
+
 var RootCmd = &cobra.Command{
 	Use:   "knitknot",
 	Short: "KnitKnot - A flexible property graph engine",

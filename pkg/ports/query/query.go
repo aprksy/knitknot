@@ -14,6 +14,7 @@ type QueryPlan struct {
 	Outputs   []string
 	LimitVal  *int
 	OffsetVal *int
+	Subgraph  string // if non-empty, restrict to this subgraph
 }
 
 // QueryEngine compiles and executes queries against a storage engine

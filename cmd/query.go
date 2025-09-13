@@ -27,6 +27,7 @@ var queryFlags struct {
 }
 
 func init() {
+	queryCmd.Flags().StringVar(&globalFlags.subgraph, "subgraph", "", "Run query within a subgraph context")
 	queryCmd.Flags().StringVar(&queryFlags.format, "format", "text", "Output format (json, text)")
 	queryCmd.Flags().BoolVar(&queryFlags.dryRun, "dry-run", false, "Parse and validate query, but don't execute")
 	queryCmd.Flags().BoolVar(&queryFlags.explain, "explain", false, "Show query execution plan")
@@ -60,6 +61,11 @@ func runQuery(cmd *cobra.Command, args []string) error {
 	// Otherwise, continue with execution...
 	storage := inmem.New()
 	engine := graph.NewGraphEngine(storage)
+	if globalFlags.subgraph != "" {
+		engine = engine.WithSubgraph(globalFlags.subgraph)
+	}
+
+	// TODO: Remove sample data
 	seedSampleData(engine)
 
 	builder, err := applyAST(engine, ast)
