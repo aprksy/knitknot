@@ -31,23 +31,19 @@ func (p *Parser) Parse() (*Query, error) {
 	for p.curToken.Type != EOF {
 		if p.curToken.Type == Ident {
 			method := p.parseMethodCall()
-			if method != nil {
-				query.Methods = append(query.Methods, method)
-			} else {
-				break
+			if method == nil {
+				return nil, fmt.Errorf("failed to parse method (pos: %d)", p.l.position-1)
 			}
+			query.Methods = append(query.Methods, method)
+		} else {
+			return nil, fmt.Errorf("expected method name, got %v at pos %d", p.curToken.Type, p.curToken.PosX)
 		}
 
-		if p.peekToken.Type == Dot {
+		if p.expectPeek(Dot) {
 			p.nextToken() // consume dot
-			p.nextToken()
 		} else {
 			break
 		}
-	}
-
-	if len(p.errors) > 0 {
-		return nil, fmt.Errorf("parser errors: %v", p.errors)
 	}
 
 	return query, nil
@@ -55,9 +51,8 @@ func (p *Parser) Parse() (*Query, error) {
 
 func (p *Parser) parseMethodCall() *MethodCall {
 	methodName := &Identifier{Value: p.curToken.Literal}
-	p.nextToken()
 
-	if !p.expectPeek(Lparen) {
+	if !p.expectPeek(LParen) {
 		return nil
 	}
 	p.nextToken()
@@ -67,38 +62,37 @@ func (p *Parser) parseMethodCall() *MethodCall {
 		return nil
 	}
 
-	if !p.expectPeek(Rparen) {
-		return nil
-	}
-	p.nextToken()
-
-	return &MethodCall{
+	methodCall := MethodCall{
 		Name:      methodName,
 		Arguments: args,
 	}
+	return &methodCall
 }
 
 func (p *Parser) parseArguments() []Expression {
 	var args []Expression
 
-	if p.peekToken.Type == Rparen {
-		p.nextToken()
-		return args
-	}
+	if p.curToken.Type != RParen {
+		args = []Expression{}
 
-	p.nextToken()
-	arg := p.parseExpression()
-	if arg != nil {
-		args = append(args, arg)
-	}
-
-	for p.peekToken.Type == Comma {
-		p.nextToken()
-		p.nextToken()
 		arg := p.parseExpression()
 		if arg != nil {
 			args = append(args, arg)
 		}
+
+		for p.peekToken.Type == Comma {
+			p.nextToken()
+			p.nextToken()
+			arg := p.parseExpression()
+			if arg != nil {
+				args = append(args, arg)
+			}
+		}
+	}
+
+	if p.peekToken.Type == RParen {
+		p.nextToken()
+		return args
 	}
 
 	return args
@@ -121,10 +115,9 @@ func (p *Parser) parseExpression() Expression {
 
 func (p *Parser) expectPeek(t TokenType) bool {
 	if p.peekToken.Type == t {
-		p.nextToken()
+		p.nextToken() // advances curToken to peekToken
 		return true
-	} else {
-		p.errors = append(p.errors, fmt.Sprintf("expected next token to be %s, got %s", t, p.peekToken.Type))
-		return false
 	}
+	p.errors = append(p.errors, fmt.Sprintf("expected %v, got %v", t, p.peekToken.Type))
+	return false
 }

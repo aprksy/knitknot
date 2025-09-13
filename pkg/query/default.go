@@ -18,23 +18,81 @@ func NewDefaultQueryEngine() *DefaultQueryEngine {
 	return &DefaultQueryEngine{}
 }
 
+// func (qe *DefaultQueryEngine) Execute(
+// 	ctx context.Context,
+// 	storage storage.StorageEngine,
+// 	plan *query.QueryPlan,
+// ) (query.ResultSet, error) {
+
+// 	results := make([]map[string]*types.Node, 0)
+
+// 	// If no nodes in pattern, return all?
+// 	if len(plan.Nodes) == 0 {
+// 		return &ResultSet{items: results}, nil
+// 	}
+
+// 	// Start with first node
+// 	for _, nodePattern := range plan.Nodes {
+// 		candidates := filterNodesByLabel(storage.GetAllNodes(), nodePattern.Label)
+// 		for _, node := range candidates {
+// 			row := map[string]*types.Node{
+// 				nodePattern.Var: node,
+// 			}
+
+// 			// Apply filters like "u.name = 'Alice'"
+// 			matched := true
+// 			for _, f := range plan.Filters {
+// 				if strings.HasPrefix(f.Field, nodePattern.Var+".") {
+// 					prop := f.Field[len(nodePattern.Var)+1:]
+// 					val, ok := node.Props[prop]
+// 					if !ok {
+// 						matched = false
+// 						break
+// 					}
+// 					if !compare(val, f.Op, f.Value) {
+// 						matched = false
+// 						break
+// 					}
+// 				}
+// 			}
+// 			if matched {
+// 				results = append(results, row)
+// 			}
+// 		}
+// 	}
+
+// 	// Apply limit
+// 	if plan.LimitVal != nil && len(results) > *plan.LimitVal {
+// 		results = results[:*plan.LimitVal]
+// 	}
+
+// 	return &ResultSet{items: results}, nil
+// }
+
 func (qe *DefaultQueryEngine) Execute(
 	ctx context.Context,
 	storage storage.StorageEngine,
 	plan *query.QueryPlan,
 ) (query.ResultSet, error) {
+	var results []map[string]*types.Node
 
-	// For now: super simple execution
-	// Later: pattern matching, filtering, joins
-
-	results := make([]map[string]*types.Node, 0)
-
-	// If no nodes in pattern, return all?
+	// Case 1: No nodes specified
 	if len(plan.Nodes) == 0 {
+		nodes := storage.GetAllNodes()
+		for _, node := range nodes {
+			row := map[string]*types.Node{
+				"n": node,
+			}
+
+			// apply filters
+			if qe.matchFilters(row, plan.Filters) {
+				results = append(results, row)
+			}
+		}
 		return &ResultSet{items: results}, nil
 	}
 
-	// Start with first node
+	// Case 2: Normal pattern matching
 	for _, nodePattern := range plan.Nodes {
 		candidates := filterNodesByLabel(storage.GetAllNodes(), nodePattern.Label)
 		for _, node := range candidates {
@@ -42,23 +100,7 @@ func (qe *DefaultQueryEngine) Execute(
 				nodePattern.Var: node,
 			}
 
-			// Apply filters like "u.name = 'Alice'"
-			matched := true
-			for _, f := range plan.Filters {
-				if strings.HasPrefix(f.Field, nodePattern.Var+".") {
-					prop := f.Field[len(nodePattern.Var)+1:]
-					val, ok := node.Props[prop]
-					if !ok {
-						matched = false
-						break
-					}
-					if !compare(val, f.Op, f.Value) {
-						matched = false
-						break
-					}
-				}
-			}
-			if matched {
+			if qe.matchFilters(row, plan.Filters) {
 				results = append(results, row)
 			}
 		}
@@ -70,6 +112,31 @@ func (qe *DefaultQueryEngine) Execute(
 	}
 
 	return &ResultSet{items: results}, nil
+}
+
+func (qe *DefaultQueryEngine) matchFilters(row map[string]*types.Node, filters []query.Filter) bool {
+	for _, f := range filters {
+		// Extract var name: e.g., "n.age" → var="n", prop="age"
+		parts := strings.SplitN(f.Field, ".", 2)
+		if len(parts) != 2 {
+			continue // invalid filter
+		}
+		varName, prop := parts[0], parts[1]
+		node, ok := row[varName]
+		if !ok {
+			return false
+		}
+
+		val, ok := node.Props[prop]
+		if !ok {
+			return false
+		}
+
+		if !compare(val, f.Op, f.Value) {
+			return false
+		}
+	}
+	return true
 }
 
 func filterNodesByLabel(nodes []*types.Node, label string) []*types.Node {

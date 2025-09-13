@@ -7,7 +7,7 @@ import (
 	"github.com/aprksy/knitknot/pkg/ports/query"
 )
 
-// Builder is the fluent query builder (lives in same package → no cycle)
+// Builder is the fluent query builder
 type Builder struct {
 	engine  *GraphEngine
 	plan    *query.QueryPlan
@@ -67,7 +67,8 @@ func (b *Builder) RelatedTo(targetVar, edgeKind, sourceVar string) *Builder {
 }
 
 func (b *Builder) Exec(ctx context.Context) (query.ResultSet, error) {
-	return b.engine.Query(ctx, b.plan)
+	result, err := b.engine.Query(ctx, b.plan)
+	return result, err
 }
 
 func (b *Builder) freshVar() string {

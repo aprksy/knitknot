@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/aprksy/knitknot/pkg/storage/inmem"
@@ -20,57 +21,46 @@ var queryCmd = &cobra.Command{
 }
 
 var queryFlags struct {
-	format string
+	format  string
+	dryRun  bool
+	explain bool
 }
 
 func init() {
-	queryCmd.Flags().StringVar(&queryFlags.format, "format", "json", "Output format (json, text)")
+	queryCmd.Flags().StringVar(&queryFlags.format, "format", "text", "Output format (json, text)")
+	queryCmd.Flags().BoolVar(&queryFlags.dryRun, "dry-run", false, "Parse and validate query, but don't execute")
+	queryCmd.Flags().BoolVar(&queryFlags.explain, "explain", false, "Show query execution plan")
 	RootCmd.AddCommand(queryCmd)
 }
 
-// func runQuery(cmd *cobra.Command, args []string) error {
-// 	// queryStr := args[0]
-// 	storage := inmem.New()
-// 	engine := graph.NewGraphEngine(storage)
-
-// 	ctx := context.Background()
-// 	result, err := engine.Find("User").
-// 		Has("has_skill", "Go").
-// 		Where("n.age", ">", 32).
-// 		Exec(ctx)
-
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	switch queryFlags.format {
-// 	case "text":
-// 		for _, row := range result.Items() {
-// 			for k, n := range row {
-// 				fmt.Printf("%s: %s (%s)\n", k, n.Props["name"], n.Label)
-// 			}
-// 		}
-// 	case "json":
-// 		data, _ := json.MarshalIndent(result, "", "  ")
-// 		fmt.Println(string(data))
-// 	}
-
-// 	return nil
-// }
-
-// In cmd/query.go
-
 func runQuery(cmd *cobra.Command, args []string) error {
 	dslText := args[0]
-	storage := inmem.New()
-	engine := graph.NewGraphEngine(storage)
-	seedSampleData(engine)
+	fmt.Fprintf(os.Stderr, "INPUT: %q\n", dslText)
 
+	// Parse first
 	parser := dsl.NewParser(dslText)
 	ast, err := parser.Parse()
 	if err != nil {
 		return fmt.Errorf("parse error: %w", err)
 	}
+
+	// Show plan if --explain
+	if queryFlags.explain {
+		printExplain(dslText, ast)
+	}
+
+	// Exit early if --dry-run
+	if queryFlags.dryRun {
+		if !queryFlags.explain {
+			fmt.Println("Syntax OK")
+		}
+		return nil
+	}
+
+	// Otherwise, continue with execution...
+	storage := inmem.New()
+	engine := graph.NewGraphEngine(storage)
+	seedSampleData(engine)
 
 	builder, err := applyAST(engine, ast)
 	if err != nil {
@@ -83,11 +73,62 @@ func runQuery(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Output...
-	data, _ := json.MarshalIndent(result, "", "  ")
-	fmt.Println(string(data))
+	// Output result
+	switch queryFlags.format {
+	case "text":
+		fmt.Println("RESULT (text):")
+		for _, row := range result.Items() {
+			for k, n := range row {
+				name := n.Props["name"]
+				if name == nil {
+					name = "?"
+				}
+				fmt.Printf("%s: %v (%s)\n", k, name, n.Label)
+			}
+		}
+	case "json":
+		fmt.Println("RESULT (json):")
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+	}
 
 	return nil
+}
+
+func printExplain(queryStr string, ast *dsl.Query) {
+	fmt.Println("Query Plan:")
+	fmt.Printf("  Raw Query: %s\n", queryStr)
+	fmt.Println("  Steps:")
+	for i, method := range ast.Methods {
+		switch method.Name.Value {
+		case "Find":
+			arg := method.Arguments[0].(*dsl.StringLiteral)
+			fmt.Printf("    %d. Match nodes with label '%s'\n", i+1, arg.Value)
+		case "Has":
+			rel := method.Arguments[0].(*dsl.StringLiteral)
+			val := method.Arguments[1].(*dsl.StringLiteral)
+			fmt.Printf("    %d. Follow '%s' edges to nodes with value '%s'\n", i+1, rel.Value, val.Value)
+		case "Where":
+			field := method.Arguments[0].(*dsl.StringLiteral)
+			op := method.Arguments[1].(*dsl.StringLiteral)
+			value := method.Arguments[2]
+			var valStr string
+			switch v := value.(type) {
+			case *dsl.StringLiteral:
+				valStr = fmt.Sprintf("%q", v.Value)
+			case *dsl.NumberLiteral:
+				valStr = fmt.Sprintf("%v", v.Value)
+			default:
+				valStr = "???"
+			}
+			fmt.Printf("    %d. Filter where %s %s %s\n", i+1, field.Value, op.Value, valStr)
+		case "Limit":
+			n := method.Arguments[0].(*dsl.NumberLiteral)
+			fmt.Printf("    %d. Limit result to %d items\n", i+1, n.Value)
+		default:
+			fmt.Printf("    %d. Unknown operation: %s\n", i+1, method.Name.Value)
+		}
+	}
 }
 
 func applyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {

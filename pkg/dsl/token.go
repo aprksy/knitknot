@@ -6,21 +6,24 @@ type TokenType string
 const (
 	Illegal TokenType = "ILLEGAL"
 	EOF     TokenType = "EOF"
+	Ident   TokenType = "IDENT"
+	Int     TokenType = "INT"
+	String  TokenType = "STRING"
+	Number  TokenType = "NUMBER"
 
-	// Symbols
-	Dot    TokenType = "."
-	Lparen TokenType = "("
-	Rparen TokenType = ")"
-	Comma  TokenType = ","
+	Assign    TokenType = "ASSIGN"
+	Plus      TokenType = "PLUS"
+	Comma     TokenType = "COMMA"
+	Semicolon TokenType = "SEMICOLON"
 
-	// Literals
-	Ident  TokenType = "IDENT"  // Find, Has, Where
-	String TokenType = "STRING" // 'User', 'Go'
-	Number TokenType = "NUMBER" // 10, 30
+	LParen TokenType = "LPAREN"
+	RParen TokenType = "RPAREN"
+	Dot    TokenType = "DOT"
 )
 
 // Token represents a lexical token
 type Token struct {
 	Type    TokenType
 	Literal string
+	PosX    int
 }

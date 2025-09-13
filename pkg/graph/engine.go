@@ -46,7 +46,8 @@ func (ge *GraphEngine) GetNode(id string) (*types.Node, bool) {
 
 // Query runs a compiled plan using the query engine
 func (ge *GraphEngine) Query(ctx context.Context, plan *query.QueryPlan) (query.ResultSet, error) {
-	return ge.query.Execute(ctx, ge.storage, plan)
+	result, err := ge.query.Execute(ctx, ge.storage, plan)
+	return result, err
 }
 
 // Storage exposes the underlying engine (useful for exporters, debug)

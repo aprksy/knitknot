@@ -1,4 +1,3 @@
-// cmd/dsl/lexer.go
 package dsl
 
 type Lexer struct {
@@ -11,6 +10,7 @@ type Lexer struct {
 func NewLexer(input string) *Lexer {
 	l := &Lexer{input: input}
 	l.readChar()
+	l.ch = l.input[l.readPosition]
 	return l
 }
 
@@ -28,36 +28,38 @@ func (l *Lexer) NextToken() Token {
 	var tok Token
 
 	l.skipWhitespace()
+	position := l.position
 
 	switch l.ch {
 	case '.':
-		tok = Token{Type: Dot, Literal: string(l.ch)}
+		tok = Token{Type: Dot, Literal: ".", PosX: position}
 	case '(':
-		tok = Token{Type: Lparen, Literal: string(l.ch)}
+		tok = Token{Type: LParen, Literal: "(", PosX: position}
 	case ')':
-		tok = Token{Type: Rparen, Literal: string(l.ch)}
+		tok = Token{Type: RParen, Literal: ")", PosX: position}
 	case ',':
-		tok = Token{Type: Comma, Literal: string(l.ch)}
+		tok = Token{Type: Comma, Literal: ",", PosX: position}
 	case '\'':
-		l.readPosition++
 		str := l.readString()
-		tok = Token{Type: String, Literal: str}
+		tok = Token{Type: String, Literal: str, PosX: position}
+		return tok // ← Return early! Already advanced in readString
 	case 0:
 		tok = Token{Type: EOF, Literal: ""}
 	default:
 		if isLetter(l.ch) {
 			id := l.readIdentifier()
-			tok = Token{Type: Ident, Literal: id}
-			return tok
+			tok = Token{Type: Ident, Literal: id, PosX: position}
+			return tok // ← Return early! Already advanced
 		} else if isDigit(l.ch) {
 			num := l.readNumber()
-			tok = Token{Type: Number, Literal: num}
-			return tok
+			tok = Token{Type: Number, Literal: num, PosX: position}
+			return tok // ← Return early!
 		} else {
-			tok = Token{Type: Illegal, Literal: string(l.ch)}
+			tok = Token{Type: Illegal, Literal: string(l.ch), PosX: position}
 		}
 	}
 
+	// Only advance if we didn't return early
 	l.readChar()
 	return tok
 }
@@ -77,14 +79,23 @@ func (l *Lexer) readIdentifier() string {
 }
 
 func (l *Lexer) readString() string {
-	pos := l.position
-	for {
+	pos := l.position + 1 // start after opening '
+	l.readChar()          // consume opening '
+
+	for l.ch != '\'' && l.ch != 0 {
 		l.readChar()
-		if l.ch == '\'' || l.ch == 0 {
-			break
-		}
 	}
-	return l.input[pos:l.position]
+
+	// At this point, l.ch is '\'' or 0
+	// Extract string content
+	s := l.input[pos:l.position]
+
+	// If we stopped at ', consume it
+	if l.ch == '\'' {
+		l.readChar() // now points after closing '
+	}
+
+	return s
 }
 
 func (l *Lexer) readNumber() string {
