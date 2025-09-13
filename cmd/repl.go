@@ -68,6 +68,7 @@ func runRepl(cmd *cobra.Command, args []string) error {
 }
 
 func handleLine(ctx context.Context, input string, engine *graph.GraphEngine, out io.Writer) error {
+	var filename string
 	input = strings.TrimSpace(input)
 	lower := strings.ToLower(input)
 
@@ -79,8 +80,14 @@ func handleLine(ctx context.Context, input string, engine *graph.GraphEngine, ou
 	case lower == "help":
 		printHelp(out)
 
-	case strings.HasPrefix(lower, "explain"):
-		return execExplain(ctx, input[7:], engine, out)
+	case strings.HasPrefix(lower, "explain "):
+		return execExplain(ctx, input[8:], engine, out)
+
+	case matchesCommand(lower, "save ", &filename):
+		return execSave(engine, filename, out)
+
+	case matchesCommand(lower, "load ", &filename):
+		return execLoad(engine, filename, out)
 
 	default:
 		return execQuery(ctx, input, engine, out)
@@ -93,7 +100,26 @@ func printHelp(out io.Writer) {
 	fmt.Fprintln(out, "  Find('Label').Where(...)        - Run a query")
 	fmt.Fprintln(out, "  EXPLAIN Find(...)               - Show query plan")
 	fmt.Fprintln(out, "  explain <query>                 - Same, case-insensitive")
+	fmt.Fprintln(out, "  SAVE \"filename\"                 - Save graph to disk")
+	fmt.Fprintln(out, "  LOAD \"filename\"                 - Load graph from disk")
 	fmt.Fprintln(out, "  help                            - Show this message")
 	fmt.Fprintln(out, "  exit / quit                     - Leave the shell")
 	fmt.Fprintln(out, "")
+}
+
+// matchesCommand checks if input starts with cmd, and extracts quoted or unquoted arg
+func matchesCommand(input, prefix string, result *string) bool {
+	if !strings.HasPrefix(input, prefix) {
+		return false
+	}
+	arg := strings.TrimSpace(input[len(prefix):])
+	if arg == "" {
+		return false
+	}
+
+	// Remove surrounding quotes if present
+	unquoted := strings.Trim(arg, `"`)
+	unquoted = strings.Trim(unquoted, `'`)
+	*result = unquoted
+	return true
 }
