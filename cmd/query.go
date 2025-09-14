@@ -84,12 +84,18 @@ func runQuery(cmd *cobra.Command, args []string) error {
 	case "text":
 		fmt.Println("RESULT (text):")
 		for _, row := range result.Items() {
+			index := 0
 			for k, n := range row {
 				name := n.Props["name"]
 				if name == nil {
 					name = "?"
 				}
-				fmt.Printf("%s: %v (%s)\n", k, name, n.Label)
+				prefix := "    "
+				if index == 0 {
+					prefix = "  - "
+				}
+				fmt.Printf("%s%s: %v (%s)\n", prefix, k, name, n.Label)
+				index++
 			}
 		}
 	case "json":
@@ -114,7 +120,7 @@ func printExplain(queryStr string, ast *dsl.Query) {
 			rel := method.Arguments[0].(*dsl.StringLiteral)
 			val := method.Arguments[1].(*dsl.StringLiteral)
 			fmt.Printf("    %d. Follow '%s' edges to nodes with value '%s'\n", i+1, rel.Value, val.Value)
-		case "Where":
+		case "Where", "WhereEdge":
 			field := method.Arguments[0].(*dsl.StringLiteral)
 			op := method.Arguments[1].(*dsl.StringLiteral)
 			value := method.Arguments[2]
@@ -184,6 +190,27 @@ func applyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 			}
 			if builder != nil {
 				builder = builder.Where(field.Value, op.Value, value)
+			}
+
+		case "WhereEdge":
+			if len(method.Arguments) != 3 {
+				return nil, fmt.Errorf("where takes 3 args")
+			}
+			field, ok1 := method.Arguments[0].(*dsl.StringLiteral)
+			op, ok2 := method.Arguments[1].(*dsl.StringLiteral)
+			var value any
+			if str, ok := method.Arguments[2].(*dsl.StringLiteral); ok {
+				value = str.Value
+			} else if num, ok := method.Arguments[2].(*dsl.NumberLiteral); ok {
+				value = num.Value
+			} else {
+				return nil, fmt.Errorf("where value must be string or number")
+			}
+			if !ok1 || !ok2 {
+				return nil, fmt.Errorf("where field and op must be strings")
+			}
+			if builder != nil {
+				builder = builder.WhereEdge(field.Value, op.Value, value)
 			}
 
 		case "Limit":
