@@ -23,53 +23,42 @@ func (qe *DefaultQueryEngine) Execute(
 	storage storage.StorageEngine,
 	plan *query.QueryPlan,
 ) (query.ResultSet, error) {
-	var (
-		results    []map[string]*types.Node
-		candidates []*types.Node
-	)
+	var results []map[string]*types.Node
 
-	if plan.Subgraph != "" {
-		candidates = storage.GetNodesIn(plan.Subgraph)
-	} else {
-		candidates = storage.GetAllNodes()
-	}
-
-	// Case 1: No nodes specified
+	// Start with first node pattern
 	if len(plan.Nodes) == 0 {
-		nodes := candidates
-		for _, node := range nodes {
-			row := map[string]*types.Node{
-				"n": node,
-			}
-
-			// apply filters
-			if qe.matchFilters(row, plan.Filters) {
-				results = append(results, row)
-			}
-		}
 		return &ResultSet{items: results}, nil
 	}
 
-	// Case 2: Normal pattern matching
-	for _, nodePattern := range plan.Nodes {
-		candidates = filterNodesByLabel(candidates, nodePattern.Label)
-		for _, node := range candidates {
-			row := map[string]*types.Node{
-				nodePattern.Var: node,
-			}
+	first := plan.Nodes[0]
+	candidates := filterNodesByLabel(storage.GetAllNodes(), first.Label)
 
-			if qe.matchFilters(row, plan.Filters) {
-				results = append(results, row)
-			}
+	for _, node := range candidates {
+		row := map[string]*types.Node{
+			first.Var: node,
 		}
+
+		results = append(results, row)
 	}
+
+	// Now extend with remaining nodes + edges
+	for _, edgePattern := range plan.Edges {
+		results = qe.expandViaEdge(storage, results, edgePattern, plan.Nodes, plan.Filters)
+	}
+
+	// Apply final filters (some may involve multiple vars)
+	filtered := qe.applyAllFilters(results, plan.Filters)
 
 	// Apply limit
-	if plan.LimitVal != nil && len(results) > *plan.LimitVal {
-		results = results[:*plan.LimitVal]
+	if plan.LimitVal != nil && len(filtered) > *plan.LimitVal {
+		filtered = filtered[:*plan.LimitVal]
 	}
 
-	return &ResultSet{items: results}, nil
+	// jsonFiltered, _ := json.MarshalIndent(filtered, "", "  ")
+	// fmt.Printf("Filtered Result: %v\n", string(jsonFiltered))
+	// fmt.Println()
+
+	return NewResultSet(filtered), nil
 }
 
 func (qe *DefaultQueryEngine) matchFilters(row map[string]*types.Node, filters []query.Filter) bool {
@@ -77,9 +66,10 @@ func (qe *DefaultQueryEngine) matchFilters(row map[string]*types.Node, filters [
 		// Extract var name: e.g., "n.age" → var="n", prop="age"
 		parts := strings.SplitN(f.Field, ".", 2)
 		if len(parts) != 2 {
-			continue // invalid filter
+			continue
 		}
 		varName, prop := parts[0], parts[1]
+
 		node, ok := row[varName]
 		if !ok {
 			return false
@@ -95,6 +85,86 @@ func (qe *DefaultQueryEngine) matchFilters(row map[string]*types.Node, filters [
 		}
 	}
 	return true
+}
+
+func (qe *DefaultQueryEngine) applyAllFilters(rows []map[string]*types.Node, filters []query.Filter) []map[string]*types.Node {
+	var result []map[string]*types.Node
+	for _, row := range rows {
+		if qe.matchFilters(row, filters) {
+			result = append(result, row)
+		}
+	}
+	return result
+}
+
+func (qe *DefaultQueryEngine) findLabelForVar(varName string, nodes []*query.PatternNode) string {
+	for _, n := range nodes {
+		if n.Var == varName {
+			return n.Label
+		}
+	}
+	return ""
+}
+
+func (qe *DefaultQueryEngine) expandViaEdge(
+	storage storage.StorageEngine,
+	rows []map[string]*types.Node,
+	edge *query.PatternEdge,
+	allNodes []*query.PatternNode,
+	filters []query.Filter,
+) []map[string]*types.Node {
+	var expanded []map[string]*types.Node
+
+	fromVar := edge.From
+	toVar := edge.To
+	kind := edge.Kind
+
+	for _, row := range rows {
+		fromNode, ok := row[fromVar]
+		if !ok {
+			continue
+		}
+
+		// Get all outgoing edges of this kind
+		for _, e := range storage.GetEdgesFrom(fromNode.ID) {
+			if e.Kind != kind {
+				continue
+			}
+
+			toNode, ok := storage.GetNode(e.To)
+			if !ok {
+				continue
+			}
+
+			// Does this node match the expected label?
+			expectedLabel := qe.findLabelForVar(toVar, allNodes)
+			if expectedLabel != "" && toNode.Label != expectedLabel {
+				continue
+			}
+
+			// Create extended row
+			newRow := copyMap(row)
+			newRow[toVar] = toNode
+
+			// Only include if all filters still match
+			if qe.matchFilters(newRow, filters) {
+				expanded = append(expanded, newRow)
+			}
+		}
+	}
+
+	return expanded
+}
+
+func copyMap(m map[string]*types.Node) map[string]*types.Node {
+	if m == nil {
+		return nil
+	}
+	cp := make(map[string]*types.Node, len(m))
+	for k, v := range m {
+		cp[k] = v
+	}
+	return cp
 }
 
 func filterNodesByLabel(nodes []*types.Node, label string) []*types.Node {
