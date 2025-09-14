@@ -106,56 +106,6 @@ func (qe *DefaultQueryEngine) findLabelForVar(varName string, nodes []*query.Pat
 	return ""
 }
 
-// func (qe *DefaultQueryEngine) expandViaEdge(
-// 	storage storage.StorageEngine,
-// 	rows []map[string]*types.Node,
-// 	edge *query.PatternEdge,
-// 	allNodes []*query.PatternNode,
-// 	filters []query.Filter,
-// ) []map[string]*types.Node {
-// 	var expanded []map[string]*types.Node
-
-// 	fromVar := edge.From
-// 	toVar := edge.To
-// 	kind := edge.Kind
-
-// 	for _, row := range rows {
-// 		fromNode, ok := row[fromVar]
-// 		if !ok {
-// 			continue
-// 		}
-
-// 		// Get all outgoing edges of this kind
-// 		for _, e := range storage.GetEdgesFrom(fromNode.ID) {
-// 			if e.Kind != kind {
-// 				continue
-// 			}
-
-// 			toNode, ok := storage.GetNode(e.To)
-// 			if !ok {
-// 				continue
-// 			}
-
-// 			// Does this node match the expected label?
-// 			expectedLabel := qe.findLabelForVar(toVar, allNodes)
-// 			if expectedLabel != "" && toNode.Label != expectedLabel {
-// 				continue
-// 			}
-
-// 			// Create extended row
-// 			newRow := copyMap(row)
-// 			newRow[toVar] = toNode
-
-// 			// Only include if all filters still match
-// 			if qe.matchFilters(newRow, filters) {
-// 				expanded = append(expanded, newRow)
-// 			}
-// 		}
-// 	}
-
-// 	return expanded
-// }
-
 func (qe *DefaultQueryEngine) expandViaEdge(
 	storage storage.StorageEngine,
 	rows []map[string]*types.Node,
