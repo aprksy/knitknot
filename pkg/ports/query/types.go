@@ -8,6 +8,7 @@ type PatternNode struct {
 type PatternEdge struct {
 	From, To string
 	Kind     string
+	Filters  []Filter
 }
 
 type Filter struct {

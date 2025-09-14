@@ -87,6 +87,15 @@ func (b *Builder) RelatedTo(targetVar, edgeKind, sourceVar string) *Builder {
 	return b
 }
 
+func (b *Builder) WhereEdge(field, op string, value any) *Builder {
+	if len(b.plan.Edges) == 0 {
+		return b
+	}
+	edge := b.plan.Edges[len(b.plan.Edges)-1]
+	edge.Filters = append(edge.Filters, query.Filter{Field: field, Op: op, Value: value})
+	return b
+}
+
 func (b *Builder) In(subgraph string) *Builder {
 	b.plan.Subgraph = subgraph
 	return b
