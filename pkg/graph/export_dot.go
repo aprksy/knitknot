@@ -18,14 +18,14 @@ func LabelSafe(s string) string {
 }
 
 // ExportToDOT writes the graph in DOT format
-func ExportToDOT(engine *GraphEngine, w io.Writer) error {
+func ExportToDOT(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
 	_, err := fmt.Fprintf(w, "digraph KnitKnot {\n")
 	if err != nil {
 		return err
 	}
 
 	// Nodes
-	for _, n := range engine.Storage().GetAllNodes() {
+	for _, n := range nodes {
 		label := n.Label
 		if name, ok := n.Props["name"]; ok {
 			label = fmt.Sprintf("%s:%v", n.Label, name)
@@ -41,7 +41,7 @@ func ExportToDOT(engine *GraphEngine, w io.Writer) error {
 
 	// Edges
 	seen := make(map[string]bool)
-	for _, edge := range getAllEdges(engine) {
+	for _, edge := range edges {
 		key := fmt.Sprintf("%s->%s@%s", edge.From, edge.To, edge.Kind)
 		if seen[key] {
 			continue
@@ -62,25 +62,25 @@ func ExportToDOT(engine *GraphEngine, w io.Writer) error {
 	return err
 }
 
-func getAllEdges(engine *GraphEngine) []*types.Edge {
-	edges := make([]*types.Edge, 0)
-	storage := engine.Storage()
+// func getAllEdges(engine *GraphEngine) []*types.Edge {
+// 	edges := make([]*types.Edge, 0)
+// 	storage := engine.Storage()
 
-	for _, n := range storage.GetAllNodes() {
-		edges = append(edges, storage.GetEdgesFrom(n.ID)...)
-	}
-	return dedupEdges(edges)
-}
+// 	for _, n := range storage.GetAllNodes() {
+// 		edges = append(edges, storage.GetEdgesFrom(n.ID)...)
+// 	}
+// 	return dedupEdges(edges)
+// }
 
-func dedupEdges(edges []*types.Edge) []*types.Edge {
-	seen := make(map[string]*types.Edge)
-	for _, e := range edges {
-		key := fmt.Sprintf("%s->%s@%s", e.From, e.To, e.Kind)
-		seen[key] = e
-	}
-	result := make([]*types.Edge, 0, len(seen))
-	for _, e := range seen {
-		result = append(result, e)
-	}
-	return result
-}
+// func dedupEdges(edges []*types.Edge) []*types.Edge {
+// 	seen := make(map[string]*types.Edge)
+// 	for _, e := range edges {
+// 		key := fmt.Sprintf("%s->%s@%s", e.From, e.To, e.Kind)
+// 		seen[key] = e
+// 	}
+// 	result := make([]*types.Edge, 0, len(seen))
+// 	for _, e := range seen {
+// 		result = append(result, e)
+// 	}
+// 	return result
+// }

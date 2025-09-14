@@ -7,6 +7,15 @@ import (
 
 var _ query.ResultSet = (*ResultSet)(nil)
 
+func NewResultSet(items []map[string]*types.Node) *ResultSet {
+	// Make a shallow copy to prevent mutation
+	copied := make([]map[string]*types.Node, len(items))
+	for i, row := range items {
+		copied[i] = copyMap(row)
+	}
+	return &ResultSet{items: copied}
+}
+
 // ResultSet holds the results of a query execution.
 // Each item is a mapping from variable name (e.g., "n", "s") to Node.
 type ResultSet struct {

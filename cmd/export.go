@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	"github.com/aprksy/knitknot/pkg/graph"
+	"github.com/aprksy/knitknot/pkg/ports/types"
 	"github.com/aprksy/knitknot/pkg/storage/inmem"
 	"github.com/spf13/cobra"
 )
@@ -32,6 +33,7 @@ var exportFlags struct {
 }
 
 func init() {
+	exportCmd.Flags().StringVar(&globalFlags.subgraph, "subgraph", "", "Run query within a subgraph context")
 	exportCmd.Flags().StringVarP(&exportFlags.format, "format", "f", "dot", "Output format (dot, svg, json)")
 	exportCmd.Flags().StringVarP(&exportFlags.output, "output", "o", "", "Output file (default stdout)")
 	RootCmd.AddCommand(exportCmd)
@@ -47,11 +49,6 @@ func runExport(cmd *cobra.Command, args []string) error {
 	storage := inmem.New()
 	engine := graph.NewGraphEngine(storage)
 
-	// Add sample data
-	aliceID, _ := engine.AddNode("User", map[string]any{"name": "Alice"})
-	goID, _ := engine.AddNode("Skill", map[string]any{"name": "Go"})
-	_ = engine.AddEdge(aliceID, goID, "has_skill", nil)
-
 	var writer io.Writer = os.Stdout
 	if exportFlags.output != "" {
 		file, err := os.Create(exportFlags.output)
@@ -62,11 +59,24 @@ func runExport(cmd *cobra.Command, args []string) error {
 		writer = file
 	}
 
+	var (
+		nodes []*types.Node
+		edges []*types.Edge
+	)
+
+	if globalFlags.subgraph != "" {
+		nodes = engine.Storage().GetNodesIn(globalFlags.subgraph)
+		edges = engine.Storage().GetEdgesIn(globalFlags.subgraph)
+	} else {
+		nodes = engine.Storage().GetAllNodes()
+		edges = engine.Storage().GetAllEdges()
+	}
+
 	switch format {
 	case FormatDOT:
-		return exportToDOT(engine, writer)
+		return exportToDOT(nodes, edges, writer)
 	case FormatSVG:
-		return exportToSVG(engine, writer)
+		return exportToSVG(nodes, edges, writer)
 		// case FormatJSON:
 		// 	return exportToJSON(engine, writer)
 	}
@@ -74,7 +84,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func exportToSVG(engine *graph.GraphEngine, w io.Writer) error {
+func exportToSVG(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
 	// Use external `dot` command
 	cmd := exec.Command("dot", "-Tsvg")
 	reader, writer := io.Pipe()
@@ -89,13 +99,13 @@ func exportToSVG(engine *graph.GraphEngine, w io.Writer) error {
 	// Write DOT to pipe
 	go func() {
 		defer writer.Close()
-		_ = graph.ExportToDOT(engine, writer)
+		_ = graph.ExportToDOT(nodes, edges, writer)
 	}()
 
 	// Wait for completion
 	return cmd.Wait()
 }
 
-func exportToDOT(engine *graph.GraphEngine, w io.Writer) error {
-	return graph.ExportToDOT(engine, w)
+func exportToDOT(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
+	return graph.ExportToDOT(nodes, edges, w)
 }
