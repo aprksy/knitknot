@@ -11,9 +11,9 @@ import (
 	"github.com/aprksy/knitknot/pkg/storage/file"
 )
 
-func (s *Storage) WithVerbs(vr *types.VerbRegistry) {
-	s.verbs = vr
-}
+// func (s *Storage) WithVerbs(vr *types.VerbRegistry) {
+// 	s.verbs = vr
+// }
 
 // Save writes the current graph state to disk
 func (s *Storage) Save(filename string, engine *graph.GraphEngine) error {
