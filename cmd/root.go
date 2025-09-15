@@ -9,6 +9,7 @@ import (
 
 var globalFlags struct {
 	subgraph string
+	file     string
 }
 
 var RootCmd = &cobra.Command{
@@ -29,4 +30,20 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func init() {
+	cobra.OnInitialize(initConfig)
+
+	// Register global flags
+	RootCmd.PersistentFlags().StringVarP(
+		&globalFlags.file,
+		"file", "f",
+		"",
+		"Graph data file to load and save (e.g., data.gob)",
+	)
+}
+
+func initConfig() {
+	// Optional: config file logic later
 }

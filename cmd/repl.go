@@ -8,8 +8,7 @@ import (
 	"strings"
 
 	"github.com/aprksy/knitknot/pkg/graph"
-	"github.com/aprksy/knitknot/pkg/storage/inmem"
-	"github.com/chzyer/readline" // lightweight line reader
+	"github.com/chzyer/readline"
 	"github.com/spf13/cobra"
 )
 
@@ -40,11 +39,18 @@ func runRepl(cmd *cobra.Command, args []string) error {
 	defer rl.Close()
 
 	fmt.Println("Welcome to KnitKnot REPL! Type a query or 'help'.")
+	if globalFlags.file != "" {
+		fmt.Printf("Using data file: %s\n", globalFlags.file)
+	}
 	fmt.Println("Press Ctrl+C to exit.")
 
 	// Initialize engine
-	storage := inmem.New()
-	engine := graph.NewGraphEngine(storage)
+	// Load graph from -f
+	engine, err := LoadGraph(globalFlags.file)
+	if err != nil {
+		return err
+	}
+
 	if globalFlags.subgraph != "" {
 		engine = engine.WithSubgraph(globalFlags.subgraph)
 	}
@@ -66,6 +72,13 @@ func runRepl(cmd *cobra.Command, args []string) error {
 
 		if err := handleLine(ctx, line, engine, rl.Stdout()); err != nil {
 			fmt.Fprintf(rl.Stderr(), "Error: %v\n", err)
+		}
+	}
+
+	// Autosave on exit if file was specified
+	if globalFlags.file != "" {
+		if err := SaveGraph(engine, globalFlags.file); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save: %v\n", err)
 		}
 	}
 

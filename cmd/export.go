@@ -8,7 +8,6 @@ import (
 
 	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/aprksy/knitknot/pkg/ports/types"
-	"github.com/aprksy/knitknot/pkg/storage/inmem"
 	"github.com/spf13/cobra"
 )
 
@@ -34,7 +33,7 @@ var exportFlags struct {
 
 func init() {
 	exportCmd.Flags().StringVar(&globalFlags.subgraph, "subgraph", "", "Run query within a subgraph context")
-	exportCmd.Flags().StringVarP(&exportFlags.format, "format", "f", "dot", "Output format (dot, svg, json)")
+	exportCmd.Flags().StringVarP(&exportFlags.format, "format", "F", "dot", "Output format (dot, svg, json)")
 	exportCmd.Flags().StringVarP(&exportFlags.output, "output", "o", "", "Output file (default stdout)")
 	RootCmd.AddCommand(exportCmd)
 }
@@ -45,11 +44,16 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unsupported format: %s", format)
 	}
 
-	// For now: create in-memory graph and populate sample data
-	storage := inmem.New()
-	engine := graph.NewGraphEngine(storage)
+	// Load graph based on -f flag
+	engine, err := LoadGraph(globalFlags.file)
+	if err != nil {
+		return err
+	}
 
-	seedSampleData(engine)
+	// if subgraph specified
+	if globalFlags.subgraph != "" {
+		engine = engine.WithSubgraph(globalFlags.subgraph)
+	}
 
 	var writer io.Writer = os.Stdout
 	if exportFlags.output != "" {
