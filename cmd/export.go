@@ -49,6 +49,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 	storage := inmem.New()
 	engine := graph.NewGraphEngine(storage)
 
+	seedSampleData(engine)
+
 	var writer io.Writer = os.Stdout
 	if exportFlags.output != "" {
 		file, err := os.Create(exportFlags.output)

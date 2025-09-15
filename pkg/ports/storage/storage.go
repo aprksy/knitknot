@@ -14,4 +14,5 @@ type StorageEngine interface {
 	GetEdgesByKind(kind string) []*types.Edge
 	GetNodesIn(subgraph string) []*types.Node
 	GetEdgesIn(subgraph string) []*types.Edge
+	// WithVerbs(vr *types.VerbRegistry)
 }

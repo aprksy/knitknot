@@ -94,6 +94,12 @@ func handleLine(ctx context.Context, input string, engine *graph.GraphEngine, ou
 	case matchesCommand(lower, "load ", &filename):
 		return execLoad(engine, filename, out)
 
+	case strings.HasPrefix(lower, "define "):
+		return execDefine(engine, input, out)
+
+	case lower == "list verbs", lower == "verbs":
+		return execListVerbs(engine, out)
+
 	default:
 		return execQuery(ctx, input, engine, out)
 	}
@@ -102,13 +108,16 @@ func handleLine(ctx context.Context, input string, engine *graph.GraphEngine, ou
 
 func printHelp(out io.Writer) {
 	fmt.Fprintln(out, "KnitKnot REPL Commands:")
-	fmt.Fprintln(out, "  Find('Label').Where(...)        - Run a query")
-	fmt.Fprintln(out, "  EXPLAIN Find(...)               - Show query plan")
-	fmt.Fprintln(out, "  explain <query>                 - Same, case-insensitive")
-	fmt.Fprintln(out, "  SAVE \"filename\"                 - Save graph to disk")
-	fmt.Fprintln(out, "  LOAD \"filename\"                 - Load graph from disk")
-	fmt.Fprintln(out, "  help                            - Show this message")
-	fmt.Fprintln(out, "  exit / quit                     - Leave the shell")
+	fmt.Fprintln(out, "  Find('Label').Where(...)             - Run a query")
+	fmt.Fprintln(out, "  EXPLAIN Find(...)                    - Show query plan")
+	fmt.Fprintln(out, "  explain <query>                      - Same, case-insensitive")
+	fmt.Fprintln(out, "  SAVE \"filename\"                      - Save graph to disk")
+	fmt.Fprintln(out, "  LOAD \"filename\"                      - Load graph from disk")
+	fmt.Fprintln(out, "  DEFINE <verb> TO <Label> VIA <prop>  - Register a relationship type")
+	fmt.Fprintln(out, "  LIST VERBS                           - Show all defined verbs")
+	fmt.Fprintln(out, "  VERBS                                - Short alias")
+	fmt.Fprintln(out, "  help                                 - Show this message")
+	fmt.Fprintln(out, "  exit / quit                          - Leave the shell")
 	fmt.Fprintln(out, "")
 }
 

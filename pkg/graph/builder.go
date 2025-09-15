@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/aprksy/knitknot/pkg/ports/query"
+	"github.com/aprksy/knitknot/pkg/ports/types"
 )
 
 // Builder is the fluent query builder
@@ -56,19 +57,23 @@ func (b *Builder) Limit(n int) *Builder {
 func (b *Builder) Has(rel, value string) *Builder {
 	v := b.freshVar()
 
-	var targetLabel, propKey string
+	// Look up verb semantics
+	verb, ok := b.engine.verbs.Lookup(rel)
+	if !ok {
+		verb = types.Verb{
+			TargetLabel: "Entity",
+			MatchOn:     types.DefaultMatchProperty,
+		}
+	}
 
-	// Map relationship type to expected node label + property
-	switch rel {
-	case "has_skill":
-		targetLabel = "Skill"
-		propKey = "name"
-	case "reports_to":
-		targetLabel = "User"
-		propKey = "name"
-	default:
-		targetLabel = "Entity" // fallback
-		propKey = "name"
+	targetLabel := verb.TargetLabel
+	if targetLabel == "" {
+		targetLabel = "Entity"
+	}
+
+	propKey := verb.MatchOn
+	if propKey == "" {
+		propKey = types.DefaultMatchProperty
 	}
 
 	b.MatchNode(v, targetLabel)
