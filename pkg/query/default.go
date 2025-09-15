@@ -94,6 +94,7 @@ func (qe *DefaultQueryEngine) applyAllFilters(rows []map[string]*types.Node, fil
 			result = append(result, row)
 		}
 	}
+
 	return result
 }
 
@@ -147,6 +148,7 @@ func (qe *DefaultQueryEngine) expandViaEdge(
 			}
 
 			newRow := copyMap(row)
+			// newRow := map[string]*types.Node{}
 			newRow[toVar] = toNode
 
 			// Node/prop filters applied later

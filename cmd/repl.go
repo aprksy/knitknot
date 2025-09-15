@@ -55,8 +55,6 @@ func runRepl(cmd *cobra.Command, args []string) error {
 		engine = engine.WithSubgraph(globalFlags.subgraph)
 	}
 
-	seedSampleData(engine) // same test data
-
 	ctx := context.Background()
 
 	for {
