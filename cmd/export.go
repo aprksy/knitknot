@@ -61,7 +61,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() {
+			if closeErr := file.Close(); closeErr != nil {
+				if err == nil {
+					err = closeErr
+				} else {
+					fmt.Printf("Error closing file: %v (original error: %v)\n", closeErr, err)
+				}
+			}
+		}()
 		writer = file
 	}
 

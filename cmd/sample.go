@@ -37,9 +37,15 @@ func runGenerateSample(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Sample graph is generated with the following details:\n")
-	execListVerbs(engine, cmd.OutOrStdout())
+	err := execListVerbs(engine, cmd.OutOrStdout())
+	if err != nil {
+		return err
+	}
 	fmt.Println()
 
-	execSave(engine, globalFlags.file, cmd.OutOrStdout())
+	err = execSave(engine, globalFlags.file, cmd.OutOrStdout())
+	if err != nil {
+		return err
+	}
 	return nil
 }

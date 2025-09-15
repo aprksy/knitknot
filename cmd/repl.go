@@ -36,7 +36,15 @@ func runRepl(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer rl.Close()
+	defer func() {
+		if closeErr := rl.Close(); closeErr != nil {
+			if err == nil {
+				err = closeErr
+			} else {
+				fmt.Printf("Error closing file: %v (original error: %v)\n", closeErr, err)
+			}
+		}
+	}()
 
 	fmt.Println("Welcome to KnitKnot REPL! Type a query or 'help'.")
 	if globalFlags.file != "" {

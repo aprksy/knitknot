@@ -6,18 +6,10 @@ import (
 )
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+	seed := int64(time.Now().UnixNano())
+	source := rand.NewSource(seed)
 
-var letters = []rune("abcdefghijklmnopqrstuvwxyz")
-
-// generateID creates a random 8-char ID
-func generateID() string {
-	b := make([]rune, 8)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
+	rand.New(source)
 }
 
 // Capitalize first letter (for labels)
