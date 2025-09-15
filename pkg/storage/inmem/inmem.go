@@ -18,7 +18,7 @@ type Storage struct {
 	mu    sync.RWMutex
 	nodes map[string]*types.Node
 	edges map[string]*types.Edge
-	verbs *types.VerbRegistry
+	// verbs *types.VerbRegistry
 }
 
 func New() *Storage {
