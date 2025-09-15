@@ -6,12 +6,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/aprksy/knitknot/pkg/ports/types"
 	"github.com/aprksy/knitknot/pkg/storage/file"
 )
 
+func (s *Storage) WithVerbs(vr *types.VerbRegistry) {
+	s.verbs = vr
+}
+
 // Save writes the current graph state to disk
-func (s *Storage) Save(filename string) error {
+func (s *Storage) Save(filename string, engine *graph.GraphEngine) error {
 	// Ensure dir exists
 	_ = os.MkdirAll(filepath.Dir(filename), 0755)
 
@@ -25,6 +30,7 @@ func (s *Storage) Save(filename string) error {
 		Version: file.CurrentVersion,
 		Nodes:   make(map[string]*types.Node),
 		Edges:   make(map[string]*types.Edge),
+		Verbs:   make(map[string]types.Verb),
 	}
 
 	s.mu.RLock()
@@ -38,12 +44,14 @@ func (s *Storage) Save(filename string) error {
 		saved.Edges[id] = e
 	}
 
+	saved.Verbs = engine.Verbs().All()
+
 	encoder := gob.NewEncoder(f)
 	return encoder.Encode(saved)
 }
 
 // Load populates the storage from a file
-func (s *Storage) Load(filename string) error {
+func (s *Storage) Load(filename string, engine *graph.GraphEngine) error {
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -73,6 +81,11 @@ func (s *Storage) Load(filename string) error {
 	}
 	for id, e := range saved.Edges {
 		s.edges[id] = e
+	}
+
+	// After restoring nodes/edges
+	for name, verb := range saved.Verbs {
+		engine.RegisterVerb(name, verb) // assuming engine is passed in
 	}
 
 	return nil

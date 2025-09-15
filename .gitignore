@@ -1,3 +1,6 @@
 knitknot
 export.dot
 .knitknot_history
+data.dot
+data.svg
+cmd/seed_data.txt

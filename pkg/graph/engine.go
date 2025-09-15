@@ -14,6 +14,7 @@ type GraphEngine struct {
 	storage         storage.StorageEngine
 	query           query.QueryEngine
 	defaultSubgraph string
+	verbs           *types.VerbRegistry
 }
 
 // NewGraphEngine creates a new engine with default components.
@@ -21,6 +22,7 @@ func NewGraphEngine(storage storage.StorageEngine) *GraphEngine {
 	return &GraphEngine{
 		storage: storage,
 		query:   q.NewDefaultQueryEngine(),
+		verbs:   types.NewVerbRegistry(),
 	}
 }
 
@@ -59,4 +61,21 @@ func (ge *GraphEngine) Query(ctx context.Context, plan *query.QueryPlan) (query.
 // Storage exposes the underlying engine (useful for exporters, debug)
 func (ge *GraphEngine) Storage() storage.StorageEngine {
 	return ge.storage
+}
+
+// WithVerbs allows replacing or extending the registry
+func (ge *GraphEngine) WithVerbs(vr *types.VerbRegistry) *GraphEngine {
+	ge.verbs = vr
+	ge.storage.WithVerbs(ge.verbs)
+	return ge
+}
+
+// RegisterVerb adds a new relationship semantic
+func (ge *GraphEngine) RegisterVerb(name string, def types.Verb) {
+	ge.verbs.Register(name, def)
+}
+
+// Verbs returns the verb registry (for introspection)
+func (ge *GraphEngine) Verbs() *types.VerbRegistry {
+	return ge.verbs
 }

@@ -100,8 +100,12 @@ func runQuery(cmd *cobra.Command, args []string) error {
 		}
 	case "json":
 		fmt.Println("RESULT (json):")
-		data, _ := json.MarshalIndent(result, "", "  ")
+		data, err := json.Marshal(result)
+		if err != nil {
+			return err
+		}
 		fmt.Println(string(data))
+		return nil
 	}
 
 	return nil
@@ -233,14 +237,4 @@ func applyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 	}
 
 	return builder, nil
-}
-
-func seedSampleData(engine *graph.GraphEngine) {
-	aliceID, _ := engine.AddNode("User", map[string]any{"name": "Alice", "age": 35})
-	bobID, _ := engine.AddNode("User", map[string]any{"name": "Bob", "age": 30})
-	goID, _ := engine.AddNode("Skill", map[string]any{"name": "Go"})
-	rustID, _ := engine.AddNode("Skill", map[string]any{"name": "Rust"})
-	_ = engine.AddEdge(aliceID, rustID, "has_skill", nil)
-	_ = engine.AddEdge(aliceID, goID, "has_skill", nil)
-	_ = engine.AddEdge(bobID, goID, "has_skill", map[string]any{"level": 4})
 }
