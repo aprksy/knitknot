@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/aprksy/knitknot/pkg/graph"
-	"github.com/aprksy/knitknot/pkg/storage/inmem"
 	"github.com/spf13/cobra"
 
 	"github.com/aprksy/knitknot/pkg/dsl"
@@ -58,15 +57,16 @@ func runQuery(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Otherwise, continue with execution...
-	storage := inmem.New()
-	engine := graph.NewGraphEngine(storage)
+	// Load graph based on -f flag
+	engine, err := LoadGraph(globalFlags.file)
+	if err != nil {
+		return err
+	}
+
+	// if subgraph specified
 	if globalFlags.subgraph != "" {
 		engine = engine.WithSubgraph(globalFlags.subgraph)
 	}
-
-	// TODO: Remove sample data
-	seedSampleData(engine)
 
 	builder, err := applyAST(engine, ast)
 	if err != nil {
