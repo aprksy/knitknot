@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/aprksy/knitknot/pkg/graph"
+	"github.com/aprksy/knitknot/pkg/exporter/dot"
 	"github.com/aprksy/knitknot/pkg/ports/types"
 	"github.com/spf13/cobra"
 )
@@ -113,7 +113,7 @@ func exportToSVG(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
 	// Write DOT to pipe
 	go func() {
 		defer writer.Close()
-		_ = graph.ExportToDOT(nodes, edges, writer)
+		_ = dot.ExportToDOT(nodes, edges, writer)
 	}()
 
 	// Wait for completion
@@ -121,5 +121,5 @@ func exportToSVG(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
 }
 
 func exportToDOT(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
-	return graph.ExportToDOT(nodes, edges, w)
+	return dot.ExportToDOT(nodes, edges, w)
 }

@@ -10,7 +10,8 @@ type Lexer struct {
 func NewLexer(input string) *Lexer {
 	l := &Lexer{input: input}
 	l.readChar()
-	l.ch = l.input[l.readPosition]
+	// l.readPosition = 0
+	// l.ch = l.input[l.readPosition]
 	return l
 }
 

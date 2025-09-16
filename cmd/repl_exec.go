@@ -17,7 +17,7 @@ func execQuery(ctx context.Context, queryStr string, engine *graph.GraphEngine, 
 		return fmt.Errorf("parse error: %w", err)
 	}
 
-	builder, err := applyAST(engine, ast)
+	builder, err := ApplyAST(engine, ast)
 	if err != nil {
 		return fmt.Errorf("build error: %w", err)
 	}
