@@ -54,10 +54,6 @@ func (qe *DefaultQueryEngine) Execute(
 		filtered = filtered[:*plan.LimitVal]
 	}
 
-	// jsonFiltered, _ := json.MarshalIndent(filtered, "", "  ")
-	// fmt.Printf("Filtered Result: %v\n", string(jsonFiltered))
-	// fmt.Println()
-
 	return NewResultSet(filtered), nil
 }
 
