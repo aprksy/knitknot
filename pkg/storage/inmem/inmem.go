@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"slices"
 	"sync"
 
 	"github.com/aprksy/knitknot/pkg/ports/storage"
@@ -18,7 +17,6 @@ type Storage struct {
 	mu    sync.RWMutex
 	nodes map[string]*types.Node
 	edges map[string]*types.Edge
-	// verbs *types.VerbRegistry
 }
 
 func New() *Storage {
@@ -31,9 +29,10 @@ func New() *Storage {
 func (s *Storage) AddNode(label string, props map[string]any) (string, error) {
 	id := generateID()
 	node := &types.Node{
-		ID:    id,
-		Label: label,
-		Props: copyMap(props),
+		ID:        id,
+		Label:     label,
+		Props:     copyMap(props),
+		Subgraphs: map[string]*types.Subgraph{},
 	}
 
 	s.mu.Lock()
@@ -44,6 +43,18 @@ func (s *Storage) AddNode(label string, props map[string]any) (string, error) {
 	}
 	s.nodes[id] = node
 	return id, nil
+}
+
+func (s *Storage) AddToSubgraph(n *types.Node, sgName, sgDesc string) {
+	subgraph := &types.Subgraph{
+		Name:        sgName,
+		Description: sgDesc,
+	}
+	n.Subgraphs[subgraph.Name] = subgraph
+}
+
+func (s *Storage) RemoveFromSubgraph(n *types.Node, sgName string) {
+	delete(n.Subgraphs, sgName)
 }
 
 func (s *Storage) AddEdge(from, to, kind string, props map[string]any) error {
@@ -61,11 +72,12 @@ func (s *Storage) AddEdge(from, to, kind string, props map[string]any) error {
 
 	id := fmt.Sprintf("%s->%s@%s", from, to, kind)
 	edge := &types.Edge{
-		ID:    id,
-		From:  from,
-		To:    to,
-		Kind:  kind,
-		Props: copyMap(props),
+		ID:        id,
+		From:      from,
+		To:        to,
+		Kind:      kind,
+		Props:     copyMap(props),
+		Subgraphs: map[string]*types.Subgraph{},
 	}
 
 	s.mu.Lock()
@@ -131,7 +143,7 @@ func (s *Storage) GetNodesIn(subgraph string) []*types.Node {
 
 	var result []*types.Node
 	for _, n := range s.nodes {
-		if slices.Contains(n.Subgraphs, subgraph) {
+		if _, exists := n.Subgraphs[subgraph]; exists {
 			result = append(result, n)
 		}
 	}
@@ -150,15 +162,17 @@ func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge {
 		if !ok1 || !ok2 {
 			continue
 		}
-		if slices.Contains(fromNode.Subgraphs, subgraph) &&
-			slices.Contains(toNode.Subgraphs, subgraph) {
+		sgInstance, fromNodeExists := fromNode.Subgraphs[subgraph]
+		_, toNodeExists := toNode.Subgraphs[subgraph]
+
+		if fromNodeExists && toNodeExists {
 			// Optionally: ensure edge itself includes subgraph
-			if slices.Contains(e.Subgraphs, subgraph) {
+			if _, exists := e.Subgraphs[subgraph]; exists {
 				result = append(result, e)
 			} else {
 				// Auto-inherit
 				cp := *e
-				cp.Subgraphs = append(cp.Subgraphs, subgraph)
+				cp.Subgraphs[subgraph] = sgInstance
 				result = append(result, &cp)
 			}
 		}
