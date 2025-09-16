@@ -111,6 +111,11 @@ func (b *Builder) Exec(ctx context.Context) (query.ResultSet, error) {
 	return result, err
 }
 
+// Only for testing
+func (b *Builder) ExportPlanForTest() *query.QueryPlan {
+	return b.plan
+}
+
 func (b *Builder) freshVar() string {
 	id := b.nextVar
 	b.nextVar++

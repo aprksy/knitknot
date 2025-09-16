@@ -1,4 +1,4 @@
-package graph
+package dot
 
 import (
 	"fmt"
@@ -61,26 +61,3 @@ func ExportToDOT(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
 	_, err = fmt.Fprintf(w, "}\n")
 	return err
 }
-
-// func getAllEdges(engine *GraphEngine) []*types.Edge {
-// 	edges := make([]*types.Edge, 0)
-// 	storage := engine.Storage()
-
-// 	for _, n := range storage.GetAllNodes() {
-// 		edges = append(edges, storage.GetEdgesFrom(n.ID)...)
-// 	}
-// 	return dedupEdges(edges)
-// }
-
-// func dedupEdges(edges []*types.Edge) []*types.Edge {
-// 	seen := make(map[string]*types.Edge)
-// 	for _, e := range edges {
-// 		key := fmt.Sprintf("%s->%s@%s", e.From, e.To, e.Kind)
-// 		seen[key] = e
-// 	}
-// 	result := make([]*types.Edge, 0, len(seen))
-// 	for _, e := range seen {
-// 		result = append(result, e)
-// 	}
-// 	return result
-// }
