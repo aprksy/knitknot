@@ -31,7 +31,7 @@ knitknot> Find('User').Has('has_skill', 'Go').Where('n.age', '>', 30)
 ## Quick Start 
 ```bash
 # Install
-go install github.com/you/knitknot@latest
+go install github.com/aprksy/knitknot@latest
 
 # Start REPL
 knitknot repl
