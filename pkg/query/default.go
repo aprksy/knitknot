@@ -128,7 +128,7 @@ func (qe *DefaultQueryEngine) expandViaEdge(
 				continue
 			}
 
-			// 🔍 Check edge filters BEFORE accepting
+			// Check edge filters BEFORE accepting
 			if !qe.matchEdgeFilters(e, edgePattern.Filters) {
 				continue
 			}
