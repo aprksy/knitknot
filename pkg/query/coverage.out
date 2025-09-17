@@ -73,17 +73,3 @@ github.com/aprksy/knitknot/pkg/query/default.go:220.11,221.26 1 7
 github.com/aprksy/knitknot/pkg/query/default.go:222.13,223.26 1 1
 github.com/aprksy/knitknot/pkg/query/default.go:224.14,226.23 2 1
 github.com/aprksy/knitknot/pkg/query/default.go:227.10,228.18 1 0
-github.com/aprksy/knitknot/pkg/query/resultset.go:13.62,16.28 2 6
-github.com/aprksy/knitknot/pkg/query/resultset.go:16.28,18.3 1 6
-github.com/aprksy/knitknot/pkg/query/resultset.go:19.2,19.34 1 6
-github.com/aprksy/knitknot/pkg/query/resultset.go:29.32,31.2 1 6
-github.com/aprksy/knitknot/pkg/query/resultset.go:34.35,36.2 1 0
-github.com/aprksy/knitknot/pkg/query/resultset.go:39.55,41.2 1 5
-github.com/aprksy/knitknot/pkg/query/resultset.go:43.51,45.30 2 0
-github.com/aprksy/knitknot/pkg/query/resultset.go:45.30,47.25 2 0
-github.com/aprksy/knitknot/pkg/query/resultset.go:47.25,49.4 1 0
-github.com/aprksy/knitknot/pkg/query/resultset.go:50.3,50.18 1 0
-github.com/aprksy/knitknot/pkg/query/resultset.go:52.2,52.26 1 0
-github.com/aprksy/knitknot/pkg/query/resultset.go:55.37,57.16 2 0
-github.com/aprksy/knitknot/pkg/query/resultset.go:57.16,59.3 1 0
-github.com/aprksy/knitknot/pkg/query/resultset.go:60.2,60.21 1 0

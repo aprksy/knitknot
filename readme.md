@@ -1,4 +1,4 @@
-[![Go Coverage](https://img.shields.io/badge/coverage-78%25-brightgreen)](coverage.html)
+[![Go Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen)](coverage.html)
 
 # KnitKnot
 

@@ -1,6 +1,8 @@
+
 <!DOCTYPE html>
-<html><head>
-		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 		<title>dsl: Go Coverage Report</title>
 		<style>
 			body {
@@ -53,102 +55,42 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0" selected="selected">github.com/aprksy/knitknot/pkg/dsl/ast.go (0.0%)</option>
+				<option value="file0">github.com/aprksy/knitknot/pkg/dsl/lexer.go (98.0%)</option>
 				
-				<option value="file1">github.com/aprksy/knitknot/pkg/dsl/lexer.go (98.0%)</option>
+				<option value="file1">github.com/aprksy/knitknot/pkg/dsl/parser.go (96.4%)</option>
 				
-				<option value="file2">github.com/aprksy/knitknot/pkg/dsl/parser.go (96.4%)</option>
+				<option value="file2">github.com/aprksy/knitknot/pkg/graph/builder.go (87.8%)</option>
 				
-				<option value="file3">github.com/aprksy/knitknot/pkg/dsl/parser_fuzz.go (0.0%)</option>
+				<option value="file3">github.com/aprksy/knitknot/pkg/graph/engine.go (30.0%)</option>
 				
-				<option value="file4">github.com/aprksy/knitknot/pkg/exporter/dot/export_dot.go (0.0%)</option>
+				<option value="file4">github.com/aprksy/knitknot/pkg/query/default.go (86.6%)</option>
 				
-				<option value="file5">github.com/aprksy/knitknot/pkg/graph/builder.go (87.8%)</option>
+				<option value="file5">github.com/aprksy/knitknot/pkg/storage/inmem/inmem.go (87.2%)</option>
 				
-				<option value="file6">github.com/aprksy/knitknot/pkg/graph/engine.go (46.7%)</option>
-				
-				<option value="file7">github.com/aprksy/knitknot/pkg/ports/types/verb_registry.go (100.0%)</option>
-				
-				<option value="file8">github.com/aprksy/knitknot/pkg/query/default.go (87.6%)</option>
-				
-				<option value="file9">github.com/aprksy/knitknot/pkg/query/resultset.go (38.9%)</option>
-				
-				<option value="file10">github.com/aprksy/knitknot/pkg/storage/inmem/inmem.go (88.4%)</option>
-				
-				<option value="file11">github.com/aprksy/knitknot/pkg/storage/inmem/persist.go (79.5%)</option>
+				<option value="file6">github.com/aprksy/knitknot/pkg/storage/inmem/persist.go (79.5%)</option>
 				
 				</select>
 			</div>
 			<div id="legend">
 				<span>not tracked</span>
 			
-				<span class="cov0">not covered</span>
-				<span class="cov8">covered</span>
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
 			
 			</div>
 		</div>
 		<div id="content">
 		
-		<pre class="file" id="file0" style="display: block;">package dsl
-
-// Node is a node in the AST
-type Node interface {
-        TokenLiteral() string
-}
-
-// Query represents the full chain
-type Query struct {
-        Methods []*MethodCall
-}
-
-func (q *Query) TokenLiteral() string <span class="cov0" title="0">{
-        if len(q.Methods) &gt; 0 </span><span class="cov0" title="0">{
-                return q.Methods[0].TokenLiteral()
-        }</span>
-        <span class="cov0" title="0">return ""</span>
-}
-
-// MethodCall represents a single call: Find('User')
-type MethodCall struct {
-        Name      *Identifier
-        Arguments []Expression
-}
-
-func (m *MethodCall) TokenLiteral() string <span class="cov0" title="0">{ return m.Name.Value }</span>
-func (m *MethodCall) ExpressionNode()      {<span class="cov0" title="0">}</span>
-
-// Identifier: Find, Has, Where
-type Identifier struct {
-        Value string
-}
-
-func (i *Identifier) ExpressionNode()      {<span class="cov0" title="0">}</span>
-func (i *Identifier) TokenLiteral() string <span class="cov0" title="0">{ return i.Value }</span>
-
-// Expressions
-type Expression interface {
-        ExpressionNode()
-        TokenLiteral() string
-}
-
-// StringLiteral: 'User'
-type StringLiteral struct {
-        Value string
-}
-
-func (s *StringLiteral) ExpressionNode()      {<span class="cov0" title="0">}</span>
-func (s *StringLiteral) TokenLiteral() string <span class="cov0" title="0">{ return s.Value }</span>
-
-// NumberLiteral: 30
-type NumberLiteral struct {
-        Value int
-}
-
-func (n *NumberLiteral) ExpressionNode()      {<span class="cov0" title="0">}</span>
-func (n *NumberLiteral) TokenLiteral() string <span class="cov0" title="0">{ return string(rune(n.Value)) }</span> // not ideal, just for now
-</pre>
-		
-		<pre class="file" id="file1" style="display: none">package dsl
+		<pre class="file" id="file0" style="display: none">package dsl
 
 type Lexer struct {
         input        string
@@ -157,7 +99,7 @@ type Lexer struct {
         ch           byte // current char
 }
 
-func NewLexer(input string) *Lexer <span class="cov8" title="1">{
+func NewLexer(input string) *Lexer <span class="cov5" title="16">{
         l := &amp;Lexer{input: input}
         l.readChar()
         // l.readPosition = 0
@@ -165,43 +107,43 @@ func NewLexer(input string) *Lexer <span class="cov8" title="1">{
         return l
 }</span>
 
-func (l *Lexer) readChar() <span class="cov8" title="1">{
-        if l.readPosition &gt;= len(l.input) </span><span class="cov8" title="1">{
+func (l *Lexer) readChar() <span class="cov10" title="393">{
+        if l.readPosition &gt;= len(l.input) </span><span class="cov5" title="27">{
                 l.ch = 0
-        }</span> else<span class="cov8" title="1"> {
+        }</span> else<span class="cov9" title="366"> {
                 l.ch = l.input[l.readPosition]
         }</span>
-        <span class="cov8" title="1">l.position = l.readPosition
+        <span class="cov10" title="393">l.position = l.readPosition
         l.readPosition++</span>
 }
 
-func (l *Lexer) NextToken() Token <span class="cov8" title="1">{
+func (l *Lexer) NextToken() Token <span class="cov8" title="130">{
         var tok Token
 
         l.skipWhitespace()
         position := l.position
 
         switch l.ch </span>{
-        case '.':<span class="cov8" title="1">
+        case '.':<span class="cov4" title="10">
                 tok = Token{Type: Dot, Literal: ".", PosX: position}</span>
-        case '(':<span class="cov8" title="1">
+        case '(':<span class="cov5" title="21">
                 tok = Token{Type: LParen, Literal: "(", PosX: position}</span>
-        case ')':<span class="cov8" title="1">
+        case ')':<span class="cov5" title="18">
                 tok = Token{Type: RParen, Literal: ")", PosX: position}</span>
-        case ',':<span class="cov8" title="1">
+        case ',':<span class="cov4" title="11">
                 tok = Token{Type: Comma, Literal: ",", PosX: position}</span>
-        case '\'':<span class="cov8" title="1">
+        case '\'':<span class="cov6" title="28">
                 str := l.readString()
                 tok = Token{Type: String, Literal: str, PosX: position}
                 return tok</span> // ← Return early! Already advanced in readString
-        case 0:<span class="cov8" title="1">
+        case 0:<span class="cov4" title="14">
                 tok = Token{Type: EOF, Literal: ""}</span>
-        default:<span class="cov8" title="1">
-                if isLetter(l.ch) </span><span class="cov8" title="1">{
+        default:<span class="cov6" title="28">
+                if isLetter(l.ch) </span><span class="cov5" title="23">{
                         id := l.readIdentifier()
                         tok = Token{Type: Ident, Literal: id, PosX: position}
                         return tok // ← Return early! Already advanced
-                }</span> else<span class="cov8" title="1"> if isDigit(l.ch) </span><span class="cov8" title="1">{
+                }</span> else<span class="cov3" title="5"> if isDigit(l.ch) </span><span class="cov3" title="5">{
                         num := l.readNumber()
                         tok = Token{Type: Number, Literal: num, PosX: position}
                         return tok // ← Return early!
@@ -211,62 +153,62 @@ func (l *Lexer) NextToken() Token <span class="cov8" title="1">{
         }
 
         // Only advance if we didn't return early
-        <span class="cov8" title="1">l.readChar()
+        <span class="cov7" title="74">l.readChar()
         return tok</span>
 }
 
-func (l *Lexer) skipWhitespace() <span class="cov8" title="1">{
-        for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' </span><span class="cov8" title="1">{
+func (l *Lexer) skipWhitespace() <span class="cov8" title="130">{
+        for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' </span><span class="cov5" title="24">{
                 l.readChar()
         }</span>
 }
 
-func (l *Lexer) readIdentifier() string <span class="cov8" title="1">{
+func (l *Lexer) readIdentifier() string <span class="cov5" title="23">{
         pos := l.position
-        for isLetter(l.ch) || isDigit(l.ch) || l.ch == '_' </span><span class="cov8" title="1">{
+        for isLetter(l.ch) || isDigit(l.ch) || l.ch == '_' </span><span class="cov7" title="90">{
                 l.readChar()
         }</span>
-        <span class="cov8" title="1">return l.input[pos:l.position]</span>
+        <span class="cov5" title="23">return l.input[pos:l.position]</span>
 }
 
-func (l *Lexer) readString() string <span class="cov8" title="1">{
+func (l *Lexer) readString() string <span class="cov6" title="28">{
         pos := l.position + 1 // start after opening '
         l.readChar()          // consume opening '
 
-        for l.ch != '\'' &amp;&amp; l.ch != 0 </span><span class="cov8" title="1">{
+        for l.ch != '\'' &amp;&amp; l.ch != 0 </span><span class="cov8" title="125">{
                 l.readChar()
         }</span>
 
         // At this point, l.ch is '\'' or 0
         // Extract string content
-        <span class="cov8" title="1">s := l.input[pos:l.position]
+        <span class="cov6" title="28">s := l.input[pos:l.position]
 
         // If we stopped at ', consume it
-        if l.ch == '\'' </span><span class="cov8" title="1">{
+        if l.ch == '\'' </span><span class="cov5" title="27">{
                 l.readChar() // now points after closing '
         }</span>
 
-        <span class="cov8" title="1">return s</span>
+        <span class="cov6" title="28">return s</span>
 }
 
-func (l *Lexer) readNumber() string <span class="cov8" title="1">{
+func (l *Lexer) readNumber() string <span class="cov3" title="5">{
         pos := l.position
-        for isDigit(l.ch) </span><span class="cov8" title="1">{
+        for isDigit(l.ch) </span><span class="cov4" title="9">{
                 l.readChar()
         }</span>
-        <span class="cov8" title="1">return l.input[pos:l.position]</span>
+        <span class="cov3" title="5">return l.input[pos:l.position]</span>
 }
 
-func isLetter(ch byte) bool <span class="cov8" title="1">{
+func isLetter(ch byte) bool <span class="cov8" title="141">{
         return 'a' &lt;= ch &amp;&amp; ch &lt;= 'z' || 'A' &lt;= ch &amp;&amp; ch &lt;= 'Z'
 }</span>
 
-func isDigit(ch byte) bool <span class="cov8" title="1">{
+func isDigit(ch byte) bool <span class="cov6" title="42">{
         return '0' &lt;= ch &amp;&amp; ch &lt;= '9'
 }</span>
 </pre>
 		
-		<pre class="file" id="file2" style="display: none">package dsl
+		<pre class="file" id="file1" style="display: none">package dsl
 
 import (
         "fmt"
@@ -280,7 +222,7 @@ type Parser struct {
         errors    []string
 }
 
-func NewParser(input string) *Parser <span class="cov8" title="1">{
+func NewParser(input string) *Parser <span class="cov6" title="16">{
         l := NewLexer(input)
         p := &amp;Parser{l: l}
         p.nextToken()
@@ -288,76 +230,76 @@ func NewParser(input string) *Parser <span class="cov8" title="1">{
         return p
 }</span>
 
-func (p *Parser) nextToken() <span class="cov8" title="1">{
+func (p *Parser) nextToken() <span class="cov10" title="130">{
         p.curToken = p.peekToken
         p.peekToken = p.l.NextToken()
 }</span>
 
-func (p *Parser) Parse() (*Query, error) <span class="cov8" title="1">{
+func (p *Parser) Parse() (*Query, error) <span class="cov6" title="16">{
         query := &amp;Query{Methods: []*MethodCall{}}
 
         // fmt.Printf("%s: %s, %s: %s\n", p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal)
-        for p.curToken.Type != EOF </span><span class="cov8" title="1">{
-                if p.curToken.Type == Ident </span><span class="cov8" title="1">{
+        for p.curToken.Type != EOF </span><span class="cov6" title="23">{
+                if p.curToken.Type == Ident </span><span class="cov6" title="22">{
                         method := p.parseMethodCall()
-                        if method == nil </span><span class="cov8" title="1">{
+                        if method == nil </span><span class="cov3" title="4">{
                                 return nil, fmt.Errorf("failed to parse method at pos %d. %s", p.l.position-1, p.errors[0])
                         }</span>
-                        <span class="cov8" title="1">query.Methods = append(query.Methods, method)</span>
-                } else<span class="cov8" title="1"> {
+                        <span class="cov6" title="18">query.Methods = append(query.Methods, method)</span>
+                } else<span class="cov1" title="1"> {
                         return nil, fmt.Errorf("expected method name, got %v at pos %d", p.curToken.Type, p.curToken.PosX)
                 }</span>
 
-                <span class="cov8" title="1">if p.expectPeek(Dot) </span><span class="cov8" title="1">{
+                <span class="cov6" title="18">if p.expectPeek(Dot) </span><span class="cov4" title="8">{
                         p.nextToken() // consume dot
-                }</span> else<span class="cov8" title="1"> {
+                }</span> else<span class="cov5" title="10"> {
                         break</span>
                 }
         }
 
-        <span class="cov8" title="1">if p.curToken.Type == EOF </span><span class="cov8" title="1">{
+        <span class="cov5" title="11">if p.curToken.Type == EOF </span><span class="cov1" title="1">{
                 return nil, fmt.Errorf("expected method name, got %v at pos %d", p.curToken.Type, p.curToken.PosX)
         }</span>
 
-        <span class="cov8" title="1">return query, nil</span>
+        <span class="cov5" title="10">return query, nil</span>
 }
 
-func (p *Parser) parseMethodCall() *MethodCall <span class="cov8" title="1">{
+func (p *Parser) parseMethodCall() *MethodCall <span class="cov6" title="22">{
         methodName := &amp;Identifier{Value: p.curToken.Literal}
 
-        if !p.expectPeek(LParen) </span><span class="cov8" title="1">{
+        if !p.expectPeek(LParen) </span><span class="cov1" title="1">{
                 return nil
         }</span>
-        <span class="cov8" title="1">p.nextToken()
+        <span class="cov6" title="21">p.nextToken()
 
         args := p.parseArguments()
-        if args == nil </span><span class="cov8" title="1">{
+        if args == nil </span><span class="cov3" title="3">{
                 return nil
         }</span>
 
-        <span class="cov8" title="1">methodCall := MethodCall{
+        <span class="cov6" title="18">methodCall := MethodCall{
                 Name:      methodName,
                 Arguments: args,
         }
         return &amp;methodCall</span>
 }
 
-func (p *Parser) parseArguments() []Expression <span class="cov8" title="1">{
+func (p *Parser) parseArguments() []Expression <span class="cov6" title="21">{
         var args []Expression
 
-        if p.curToken.Type != RParen </span><span class="cov8" title="1">{
+        if p.curToken.Type != RParen </span><span class="cov6" title="21">{
                 args = []Expression{}
 
                 arg := p.parseExpression()
-                if arg != nil </span><span class="cov8" title="1">{
+                if arg != nil </span><span class="cov6" title="21">{
                         args = append(args, arg)
                 }</span>
 
-                <span class="cov8" title="1">for p.peekToken.Type == Comma </span><span class="cov8" title="1">{
+                <span class="cov6" title="21">for p.peekToken.Type == Comma </span><span class="cov5" title="11">{
                         p.nextToken()
                         p.nextToken()
                         arg := p.parseExpression()
-                        if arg != nil </span><span class="cov8" title="1">{
+                        if arg != nil </span><span class="cov5" title="11">{
                                 args = append(args, arg)
                         }</span>
                 }
@@ -368,19 +310,19 @@ func (p *Parser) parseArguments() []Expression <span class="cov8" title="1">{
         //         return args
         // }
 
-        <span class="cov8" title="1">if !p.expectPeek(RParen) </span><span class="cov8" title="1">{
+        <span class="cov6" title="21">if !p.expectPeek(RParen) </span><span class="cov3" title="3">{
                 return nil
         }</span>
 
-        <span class="cov8" title="1">return args</span>
+        <span class="cov6" title="18">return args</span>
 }
 
-func (p *Parser) parseExpression() Expression <span class="cov8" title="1">{
+func (p *Parser) parseExpression() Expression <span class="cov7" title="32">{
         switch p.curToken.Type </span>{
-        case String:<span class="cov8" title="1">
+        case String:<span class="cov7" title="27">
                 return &amp;StringLiteral{Value: p.curToken.Literal}</span>
-        case Number:<span class="cov8" title="1">
-                if v, err := strconv.Atoi(p.curToken.Literal); err == nil </span><span class="cov8" title="1">{
+        case Number:<span class="cov3" title="5">
+                if v, err := strconv.Atoi(p.curToken.Literal); err == nil </span><span class="cov3" title="5">{
                         return &amp;NumberLiteral{Value: v}
                 }</span>
         }
@@ -388,112 +330,17 @@ func (p *Parser) parseExpression() Expression <span class="cov8" title="1">{
         return nil</span>
 }
 
-func (p *Parser) expectPeek(t TokenType) bool <span class="cov8" title="1">{
-        if p.peekToken.Type == t </span><span class="cov8" title="1">{
+func (p *Parser) expectPeek(t TokenType) bool <span class="cov8" title="61">{
+        if p.peekToken.Type == t </span><span class="cov8" title="47">{
                 p.nextToken() // advances curToken to peekToken
                 return true
         }</span>
-        <span class="cov8" title="1">p.errors = append(p.errors, fmt.Sprintf("expected %v, got %v", t, p.peekToken.Type))
+        <span class="cov5" title="14">p.errors = append(p.errors, fmt.Sprintf("expected %v, got %v", t, p.peekToken.Type))
         return false</span>
 }
 </pre>
 		
-		<pre class="file" id="file3" style="display: none">package dsl
-
-import (
-        "testing"
-)
-
-// FuzzParser ensures the DSL parser never panics on random input.
-func FuzzParser(f *testing.F) <span class="cov0" title="0">{
-        // Seed with known valid queries
-        f.Add("Find('User')")
-        f.Add("Has('has_skill', 'Go')")
-        f.Add("Where('n.age', '&gt;', 30)")
-        f.Add("Find('User').Has('has_skill', 'Go')")
-        f.Add("Find('X').Where('a.b', '=', 1).Limit(5)")
-
-        // Seed with malformed but common patterns
-        f.Add("Find(User)")
-        f.Add("'")
-        f.Add("((")
-        f.Add(".Has(x,y)")
-        f.Add("Find()..Has()")
-
-        f.Fuzz(func(t *testing.T, input string) </span><span class="cov0" title="0">{
-                parser := NewParser(input)
-                _, _ = parser.Parse()
-                // No need to assert correctness — just don't crash
-        }</span>)
-}
-</pre>
-		
-		<pre class="file" id="file4" style="display: none">package dot
-
-import (
-        "fmt"
-        "io"
-        "strings"
-
-        "github.com/aprksy/knitknot/pkg/ports/types"
-)
-
-func exportNodeName(id string) string <span class="cov0" title="0">{
-        // Clean node ID for DOT
-        return fmt.Sprintf("N_%s", strings.ReplaceAll(id, "-", "_"))
-}</span>
-
-func LabelSafe(s string) string <span class="cov0" title="0">{
-        return fmt.Sprintf("%q", s) // wrap in quotes
-}</span>
-
-// ExportToDOT writes the graph in DOT format
-func ExportToDOT(nodes []*types.Node, edges []*types.Edge, w io.Writer) error <span class="cov0" title="0">{
-        _, err := fmt.Fprintf(w, "digraph KnitKnot {\n")
-        if err != nil </span><span class="cov0" title="0">{
-                return err
-        }</span>
-
-        // Nodes
-        <span class="cov0" title="0">for _, n := range nodes </span><span class="cov0" title="0">{
-                label := n.Label
-                if name, ok := n.Props["name"]; ok </span><span class="cov0" title="0">{
-                        label = fmt.Sprintf("%s:%v", n.Label, name)
-                }</span> else<span class="cov0" title="0"> if title, ok := n.Props["title"]; ok </span><span class="cov0" title="0">{
-                        label = fmt.Sprintf("%s:%v", n.Label, title)
-                }</span>
-                <span class="cov0" title="0">_, err := fmt.Fprintf(w, "  %s [label=%s, shape=box, style=rounded];\n",
-                        exportNodeName(n.ID), LabelSafe(label))
-                if err != nil </span><span class="cov0" title="0">{
-                        return err
-                }</span>
-        }
-
-        // Edges
-        <span class="cov0" title="0">seen := make(map[string]bool)
-        for _, edge := range edges </span><span class="cov0" title="0">{
-                key := fmt.Sprintf("%s-&gt;%s@%s", edge.From, edge.To, edge.Kind)
-                if seen[key] </span><span class="cov0" title="0">{
-                        continue</span>
-                }
-                <span class="cov0" title="0">seen[key] = true
-
-                fromName := exportNodeName(edge.From)
-                toName := exportNodeName(edge.To)
-                label := fmt.Sprintf("%q", edge.Kind)
-
-                _, err := fmt.Fprintf(w, "  %s -&gt; %s [label=%s];\n", fromName, toName, label)
-                if err != nil </span><span class="cov0" title="0">{
-                        return err
-                }</span>
-        }
-
-        <span class="cov0" title="0">_, err = fmt.Fprintf(w, "}\n")
-        return err</span>
-}
-</pre>
-		
-		<pre class="file" id="file5" style="display: none">// pkg/graph/builder.go
+		<pre class="file" id="file2" style="display: none">// pkg/graph/builder.go
 package graph
 
 import (
@@ -512,7 +359,7 @@ type Builder struct {
 }
 
 // Find starts a new query for nodes with given label.
-func (ge *GraphEngine) Find(label string) *Builder <span class="cov8" title="1">{
+func (ge *GraphEngine) Find(label string) *Builder <span class="cov8" title="17">{
         b := &amp;Builder{
                 engine:  ge,
                 plan:    &amp;query.QueryPlan{},
@@ -521,21 +368,21 @@ func (ge *GraphEngine) Find(label string) *Builder <span class="cov8" title="1">
         if ge.defaultSubgraph != "" </span><span class="cov0" title="0">{
                 b.plan.Subgraph = ge.defaultSubgraph
         }</span>
-        <span class="cov8" title="1">return b.MatchNode("n", label)</span>
+        <span class="cov8" title="17">return b.MatchNode("n", label)</span>
 }
 
-func (b *Builder) MatchNode(varName, label string) *Builder <span class="cov8" title="1">{
+func (b *Builder) MatchNode(varName, label string) *Builder <span class="cov10" title="30">{
         b.plan.Nodes = append(b.plan.Nodes, &amp;query.PatternNode{
                 Var:   varName,
                 Label: label,
         })
-        if len(b.plan.Outputs) == 0 </span><span class="cov8" title="1">{
+        if len(b.plan.Outputs) == 0 </span><span class="cov8" title="17">{
                 b.plan.Outputs = append(b.plan.Outputs, varName)
         }</span>
-        <span class="cov8" title="1">return b</span>
+        <span class="cov10" title="30">return b</span>
 }
 
-func (b *Builder) Where(field, op string, value any) *Builder <span class="cov8" title="1">{
+func (b *Builder) Where(field, op string, value any) *Builder <span class="cov7" title="13">{
         b.plan.Filters = append(b.plan.Filters, query.Filter{
                 Field: field,
                 Op:    op,
@@ -544,41 +391,41 @@ func (b *Builder) Where(field, op string, value any) *Builder <span class="cov8"
         return b
 }</span>
 
-func (b *Builder) Limit(n int) *Builder <span class="cov8" title="1">{
+func (b *Builder) Limit(n int) *Builder <span class="cov1" title="1">{
         b.plan.LimitVal = &amp;n
         return b
 }</span>
 
-func (b *Builder) Has(rel, value string) *Builder <span class="cov8" title="1">{
+func (b *Builder) Has(rel, value string) *Builder <span class="cov7" title="13">{
         v := b.freshVar()
 
         // Look up verb semantics
         verb, ok := b.engine.verbs.Lookup(rel)
-        if !ok </span><span class="cov8" title="1">{
+        if !ok </span><span class="cov2" title="2">{
                 verb = types.Verb{
                         TargetLabel: "Entity",
                         MatchOn:     types.DefaultMatchProperty,
                 }
         }</span>
 
-        <span class="cov8" title="1">targetLabel := verb.TargetLabel
+        <span class="cov7" title="13">targetLabel := verb.TargetLabel
         if targetLabel == "" </span><span class="cov0" title="0">{
                 targetLabel = "Entity"
         }</span>
 
-        <span class="cov8" title="1">propKey := verb.MatchOn
-        if propKey == "" </span><span class="cov8" title="1">{
+        <span class="cov7" title="13">propKey := verb.MatchOn
+        if propKey == "" </span><span class="cov1" title="1">{
                 propKey = types.DefaultMatchProperty
         }</span>
 
-        <span class="cov8" title="1">b.MatchNode(v, targetLabel)
+        <span class="cov7" title="13">b.MatchNode(v, targetLabel)
         b.RelatedTo(v, rel, "n")
         b.Where(v+"."+propKey, "=", value)
 
         return b</span>
 }
 
-func (b *Builder) RelatedTo(targetVar, edgeKind, sourceVar string) *Builder <span class="cov8" title="1">{
+func (b *Builder) RelatedTo(targetVar, edgeKind, sourceVar string) *Builder <span class="cov7" title="13">{
         b.plan.Edges = append(b.plan.Edges, &amp;query.PatternEdge{
                 From: sourceVar,
                 To:   targetVar,
@@ -587,11 +434,11 @@ func (b *Builder) RelatedTo(targetVar, edgeKind, sourceVar string) *Builder <spa
         return b
 }</span>
 
-func (b *Builder) WhereEdge(field, op string, value any) *Builder <span class="cov8" title="1">{
+func (b *Builder) WhereEdge(field, op string, value any) *Builder <span class="cov1" title="1">{
         if len(b.plan.Edges) == 0 </span><span class="cov0" title="0">{
                 return b
         }</span>
-        <span class="cov8" title="1">edge := b.plan.Edges[len(b.plan.Edges)-1]
+        <span class="cov1" title="1">edge := b.plan.Edges[len(b.plan.Edges)-1]
         edge.Filters = append(edge.Filters, query.Filter{Field: field, Op: op, Value: value})
         return b</span>
 }
@@ -601,24 +448,24 @@ func (b *Builder) In(subgraph string) *Builder <span class="cov0" title="0">{
         return b
 }</span>
 
-func (b *Builder) Exec(ctx context.Context) (query.ResultSet, error) <span class="cov8" title="1">{
+func (b *Builder) Exec(ctx context.Context) (query.ResultSet, error) <span class="cov7" title="10">{
         result, err := b.engine.Query(ctx, b.plan)
         return result, err
 }</span>
 
 // Only for testing
-func (b *Builder) ExportPlanForTest() *query.QueryPlan <span class="cov8" title="1">{
+func (b *Builder) ExportPlanForTest() *query.QueryPlan <span class="cov1" title="1">{
         return b.plan
 }</span>
 
-func (b *Builder) freshVar() string <span class="cov8" title="1">{
+func (b *Builder) freshVar() string <span class="cov7" title="13">{
         id := b.nextVar
         b.nextVar++
         return fmt.Sprintf("v%d", id)
 }</span>
 </pre>
 		
-		<pre class="file" id="file6" style="display: none">package graph
+		<pre class="file" id="file3" style="display: none">package graph
 
 import (
         "context"
@@ -638,7 +485,7 @@ type GraphEngine struct {
 }
 
 // NewGraphEngine creates a new engine with default components.
-func NewGraphEngine(storage storage.StorageEngine) *GraphEngine <span class="cov8" title="1">{
+func NewGraphEngine(storage storage.StorageEngine) *GraphEngine <span class="cov7" title="8">{
         return &amp;GraphEngine{
                 storage: storage,
                 query:   q.NewDefaultQueryEngine(),
@@ -658,12 +505,12 @@ func (ge *GraphEngine) WithSubgraph(name string) *GraphEngine <span class="cov0"
 }</span>
 
 // AddNode delegates to storage
-func (ge *GraphEngine) AddNode(label string, props map[string]any) (string, error) <span class="cov8" title="1">{
+func (ge *GraphEngine) AddNode(label string, props map[string]any) (string, error) <span class="cov10" title="17">{
         return ge.storage.AddNode(label, props)
 }</span>
 
 // AddEdge delegates to storage
-func (ge *GraphEngine) AddEdge(from, to, kind string, props map[string]any) error <span class="cov8" title="1">{
+func (ge *GraphEngine) AddEdge(from, to, kind string, props map[string]any) error <span class="cov7" title="8">{
         return ge.storage.AddEdge(from, to, kind, props)
 }</span>
 
@@ -672,8 +519,13 @@ func (ge *GraphEngine) GetNode(id string) (*types.Node, bool) <span class="cov0"
         return ge.storage.GetNode(id)
 }</span>
 
+// GetEdge retrieves a edge by ID
+func (ge *GraphEngine) GetEdge(id string) (*types.Edge, bool) <span class="cov0" title="0">{
+        return ge.storage.GetEdge(id)
+}</span>
+
 // Query runs a compiled plan using the query engine
-func (ge *GraphEngine) Query(ctx context.Context, plan *query.QueryPlan) (query.ResultSet, error) <span class="cov8" title="1">{
+func (ge *GraphEngine) Query(ctx context.Context, plan *query.QueryPlan) (query.ResultSet, error) <span class="cov8" title="10">{
         result, err := ge.query.Execute(ctx, ge.storage, plan)
         return result, err
 }</span>
@@ -690,58 +542,33 @@ func (ge *GraphEngine) WithVerbs(vr *types.VerbRegistry) *GraphEngine <span clas
 }</span>
 
 // RegisterVerb adds a new relationship semantic
-func (ge *GraphEngine) RegisterVerb(name string, def types.Verb) <span class="cov8" title="1">{
+func (ge *GraphEngine) RegisterVerb(name string, def types.Verb) <span class="cov8" title="12">{
         ge.verbs.Register(name, def)
 }</span>
 
 // Verbs returns the verb registry (for introspection)
-func (ge *GraphEngine) Verbs() *types.VerbRegistry <span class="cov8" title="1">{
+func (ge *GraphEngine) Verbs() *types.VerbRegistry <span class="cov0" title="0">{
         return ge.verbs
 }</span>
+
+func (ge *GraphEngine) UpdateNode(id string, props map[string]any) error <span class="cov0" title="0">{
+        return ge.storage.UpdateNode(id, props)
+}</span>
+
+func (ge *GraphEngine) UpdateEdge(id string, props map[string]any) error <span class="cov0" title="0">{
+        return ge.storage.UpdateEdge(id, props)
+}</span>
+
+func (ge *GraphEngine) DeleteNode(id string) error <span class="cov0" title="0">{
+        return ge.storage.DeleteNode(id)
+}</span>
+
+func (ge *GraphEngine) DeleteEdge(from, to, kind string) error <span class="cov0" title="0">{
+        return ge.storage.DeleteEdge(from, to, kind)
+}</span>
 </pre>
 		
-		<pre class="file" id="file7" style="display: none">package types
-
-import "sync"
-
-// VerbRegistry stores semantic definitions for edge kinds
-type VerbRegistry struct {
-        mu    sync.RWMutex
-        verbs map[string]Verb
-}
-
-func NewVerbRegistry() *VerbRegistry <span class="cov8" title="1">{
-        vr := &amp;VerbRegistry{
-                verbs: make(map[string]Verb),
-        }
-        return vr
-}</span>
-
-func (vr *VerbRegistry) Register(name string, def Verb) <span class="cov8" title="1">{
-        vr.mu.Lock()
-        defer vr.mu.Unlock()
-        vr.verbs[name] = def
-}</span>
-
-func (vr *VerbRegistry) Lookup(name string) (Verb, bool) <span class="cov8" title="1">{
-        vr.mu.RLock()
-        defer vr.mu.RUnlock()
-        v, ok := vr.verbs[name]
-        return v, ok
-}</span>
-
-func (vr *VerbRegistry) All() map[string]Verb <span class="cov8" title="1">{
-        vr.mu.RLock()
-        defer vr.mu.RUnlock()
-        cp := make(map[string]Verb, len(vr.verbs))
-        for k, v := range vr.verbs </span><span class="cov8" title="1">{
-                cp[k] = v
-        }</span>
-        <span class="cov8" title="1">return cp</span>
-}
-</pre>
-		
-		<pre class="file" id="file8" style="display: none">package query
+		<pre class="file" id="file4" style="display: none">package query
 
 import (
         "context"
@@ -757,7 +584,7 @@ var _ query.QueryEngine = (*DefaultQueryEngine)(nil)
 
 type DefaultQueryEngine struct{}
 
-func NewDefaultQueryEngine() *DefaultQueryEngine <span class="cov8" title="1">{
+func NewDefaultQueryEngine() *DefaultQueryEngine <span class="cov7" title="8">{
         return &amp;DefaultQueryEngine{}
 }</span>
 
@@ -765,7 +592,7 @@ func (qe *DefaultQueryEngine) Execute(
         ctx context.Context,
         storage storage.StorageEngine,
         plan *query.QueryPlan,
-) (query.ResultSet, error) <span class="cov8" title="1">{
+) (query.ResultSet, error) <span class="cov6" title="6">{
         var results []map[string]*types.Node
 
         // Start with first node pattern
@@ -773,10 +600,10 @@ func (qe *DefaultQueryEngine) Execute(
                 return &amp;ResultSet{items: results}, nil
         }</span>
 
-        <span class="cov8" title="1">first := plan.Nodes[0]
+        <span class="cov6" title="6">first := plan.Nodes[0]
         candidates := filterNodesByLabel(storage.GetAllNodes(), first.Label)
 
-        for _, node := range candidates </span><span class="cov8" title="1">{
+        for _, node := range candidates </span><span class="cov9" title="16">{
                 row := map[string]*types.Node{
                         first.Var: node,
                 }
@@ -785,61 +612,61 @@ func (qe *DefaultQueryEngine) Execute(
         }</span>
 
         // Now extend with remaining nodes + edges
-        <span class="cov8" title="1">for _, edgePattern := range plan.Edges </span><span class="cov8" title="1">{
+        <span class="cov6" title="6">for _, edgePattern := range plan.Edges </span><span class="cov3" title="2">{
                 results = qe.expandViaEdge(storage, results, edgePattern, plan.Nodes, plan.Filters)
         }</span>
 
         // Apply final filters (some may involve multiple vars)
-        <span class="cov8" title="1">filtered := qe.applyAllFilters(results, plan.Filters)
+        <span class="cov6" title="6">filtered := qe.applyAllFilters(results, plan.Filters)
 
         // Apply limit
         if plan.LimitVal != nil &amp;&amp; len(filtered) &gt; *plan.LimitVal </span><span class="cov0" title="0">{
                 filtered = filtered[:*plan.LimitVal]
         }</span>
 
-        <span class="cov8" title="1">return NewResultSet(filtered), nil</span>
+        <span class="cov6" title="6">return NewResultSet(filtered), nil</span>
 }
 
-func (qe *DefaultQueryEngine) matchFilters(row map[string]*types.Node, filters []query.Filter) bool <span class="cov8" title="1">{
-        for _, f := range filters </span><span class="cov8" title="1">{
+func (qe *DefaultQueryEngine) matchFilters(row map[string]*types.Node, filters []query.Filter) bool <span class="cov8" title="10">{
+        for _, f := range filters </span><span class="cov8" title="10">{
                 // Extract var name: e.g., "n.age" → var="n", prop="age"
                 parts := strings.SplitN(f.Field, ".", 2)
                 if len(parts) != 2 </span><span class="cov0" title="0">{
                         continue</span>
                 }
-                <span class="cov8" title="1">varName, prop := parts[0], parts[1]
+                <span class="cov8" title="10">varName, prop := parts[0], parts[1]
 
                 node, ok := row[varName]
                 if !ok </span><span class="cov0" title="0">{
                         return false
                 }</span>
 
-                <span class="cov8" title="1">val, ok := node.Props[prop]
-                if !ok </span><span class="cov8" title="1">{
+                <span class="cov8" title="10">val, ok := node.Props[prop]
+                if !ok </span><span class="cov0" title="0">{
                         return false
                 }</span>
 
-                <span class="cov8" title="1">if !compare(val, f.Op, f.Value) </span><span class="cov8" title="1">{
+                <span class="cov8" title="10">if !compare(val, f.Op, f.Value) </span><span class="cov5" title="4">{
                         return false
                 }</span>
         }
-        <span class="cov8" title="1">return true</span>
+        <span class="cov6" title="6">return true</span>
 }
 
-func (qe *DefaultQueryEngine) applyAllFilters(rows []map[string]*types.Node, filters []query.Filter) []map[string]*types.Node <span class="cov8" title="1">{
+func (qe *DefaultQueryEngine) applyAllFilters(rows []map[string]*types.Node, filters []query.Filter) []map[string]*types.Node <span class="cov6" title="6">{
         var result []map[string]*types.Node
-        for _, row := range rows </span><span class="cov8" title="1">{
-                if qe.matchFilters(row, filters) </span><span class="cov8" title="1">{
+        for _, row := range rows </span><span class="cov8" title="10">{
+                if qe.matchFilters(row, filters) </span><span class="cov6" title="6">{
                         result = append(result, row)
                 }</span>
         }
 
-        <span class="cov8" title="1">return result</span>
+        <span class="cov6" title="6">return result</span>
 }
 
-func (qe *DefaultQueryEngine) findLabelForVar(varName string, nodes []*query.PatternNode) string <span class="cov8" title="1">{
-        for _, n := range nodes </span><span class="cov8" title="1">{
-                if n.Var == varName </span><span class="cov8" title="1">{
+func (qe *DefaultQueryEngine) findLabelForVar(varName string, nodes []*query.PatternNode) string <span class="cov3" title="2">{
+        for _, n := range nodes </span><span class="cov5" title="4">{
+                if n.Var == varName </span><span class="cov3" title="2">{
                         return n.Label
                 }</span>
         }
@@ -852,41 +679,41 @@ func (qe *DefaultQueryEngine) expandViaEdge(
         edgePattern *query.PatternEdge,
         allNodes []*query.PatternNode,
         filters []query.Filter,
-) []map[string]*types.Node <span class="cov8" title="1">{
+) []map[string]*types.Node <span class="cov3" title="2">{
         var expanded []map[string]*types.Node
 
         fromVar := edgePattern.From
         toVar := edgePattern.To
         kind := edgePattern.Kind
 
-        for _, row := range rows </span><span class="cov8" title="1">{
+        for _, row := range rows </span><span class="cov7" title="8">{
                 fromNode, ok := row[fromVar]
                 if !ok </span><span class="cov0" title="0">{
                         continue</span>
                 }
 
                 // Get ALL outgoing edges of this kind
-                <span class="cov8" title="1">for _, e := range storage.GetEdgesFrom(fromNode.ID) </span><span class="cov8" title="1">{
-                        if e.Kind != kind </span><span class="cov8" title="1">{
+                <span class="cov7" title="8">for _, e := range storage.GetEdgesFrom(fromNode.ID) </span><span class="cov5" title="4">{
+                        if e.Kind != kind </span><span class="cov1" title="1">{
                                 continue</span>
                         }
 
                         // Check edge filters BEFORE accepting
-                        <span class="cov8" title="1">if !qe.matchEdgeFilters(e, edgePattern.Filters) </span><span class="cov8" title="1">{
+                        <span class="cov4" title="3">if !qe.matchEdgeFilters(e, edgePattern.Filters) </span><span class="cov1" title="1">{
                                 continue</span>
                         }
 
-                        <span class="cov8" title="1">toNode, ok := storage.GetNode(e.To)
+                        <span class="cov3" title="2">toNode, ok := storage.GetNode(e.To)
                         if !ok </span><span class="cov0" title="0">{
                                 continue</span>
                         }
 
-                        <span class="cov8" title="1">expectedLabel := qe.findLabelForVar(toVar, allNodes)
+                        <span class="cov3" title="2">expectedLabel := qe.findLabelForVar(toVar, allNodes)
                         if expectedLabel != "" &amp;&amp; toNode.Label != expectedLabel </span><span class="cov0" title="0">{
                                 continue</span>
                         }
 
-                        <span class="cov8" title="1">newRow := copyMap(row)
+                        <span class="cov3" title="2">newRow := copyMap(row)
                         // newRow := map[string]*types.Node{}
                         newRow[toVar] = toNode
 
@@ -895,58 +722,58 @@ func (qe *DefaultQueryEngine) expandViaEdge(
                 }
         }
 
-        <span class="cov8" title="1">return expanded</span>
+        <span class="cov3" title="2">return expanded</span>
 }
 
-func (qe *DefaultQueryEngine) matchEdgeFilters(edge *types.Edge, filters []query.Filter) bool <span class="cov8" title="1">{
-        for _, f := range filters </span><span class="cov8" title="1">{
+func (qe *DefaultQueryEngine) matchEdgeFilters(edge *types.Edge, filters []query.Filter) bool <span class="cov4" title="3">{
+        for _, f := range filters </span><span class="cov3" title="2">{
                 val, ok := edge.Props[f.Field]
                 if !ok </span><span class="cov0" title="0">{
                         return false
                 }</span>
-                <span class="cov8" title="1">if !compare(val, f.Op, f.Value) </span><span class="cov8" title="1">{
+                <span class="cov3" title="2">if !compare(val, f.Op, f.Value) </span><span class="cov1" title="1">{
                         return false
                 }</span>
         }
-        <span class="cov8" title="1">return true</span>
+        <span class="cov3" title="2">return true</span>
 }
 
-func copyMap(m map[string]*types.Node) map[string]*types.Node <span class="cov8" title="1">{
+func copyMap(m map[string]*types.Node) map[string]*types.Node <span class="cov7" title="8">{
         if m == nil </span><span class="cov0" title="0">{
                 return nil
         }</span>
-        <span class="cov8" title="1">cp := make(map[string]*types.Node, len(m))
-        for k, v := range m </span><span class="cov8" title="1">{
+        <span class="cov7" title="8">cp := make(map[string]*types.Node, len(m))
+        for k, v := range m </span><span class="cov8" title="10">{
                 cp[k] = v
         }</span>
-        <span class="cov8" title="1">return cp</span>
+        <span class="cov7" title="8">return cp</span>
 }
 
-func filterNodesByLabel(nodes []*types.Node, label string) []*types.Node <span class="cov8" title="1">{
+func filterNodesByLabel(nodes []*types.Node, label string) []*types.Node <span class="cov6" title="6">{
         var filtered []*types.Node
-        for _, n := range nodes </span><span class="cov8" title="1">{
-                if n.Label == label </span><span class="cov8" title="1">{
+        for _, n := range nodes </span><span class="cov10" title="19">{
+                if n.Label == label </span><span class="cov9" title="16">{
                         filtered = append(filtered, n)
                 }</span>
         }
-        <span class="cov8" title="1">return filtered</span>
+        <span class="cov6" title="6">return filtered</span>
 }
 
-func compare(a any, op string, b any) bool <span class="cov8" title="1">{
+func compare(a any, op string, b any) bool <span class="cov8" title="12">{
         switch op </span>{
-        case "=":<span class="cov8" title="1">
+        case "=":<span class="cov5" title="4">
                 return a == b</span>
-        case "!=":<span class="cov8" title="1">
+        case "!=":<span class="cov3" title="2">
                 return a != b</span>
-        case "&gt;":<span class="cov8" title="1">
-                if ai, ok := toFloat(a); ok </span><span class="cov8" title="1">{
-                        if bi, ok := toFloat(b); ok </span><span class="cov8" title="1">{
+        case "&gt;":<span class="cov5" title="4">
+                if ai, ok := toFloat(a); ok </span><span class="cov5" title="4">{
+                        if bi, ok := toFloat(b); ok </span><span class="cov5" title="4">{
                                 return ai &gt; bi
                         }</span>
                 }
-        case "&lt;":<span class="cov8" title="1">
-                if ai, ok := toFloat(a); ok </span><span class="cov8" title="1">{
-                        if bi, ok := toFloat(b); ok </span><span class="cov8" title="1">{
+        case "&lt;":<span class="cov3" title="2">
+                if ai, ok := toFloat(a); ok </span><span class="cov3" title="2">{
+                        if bi, ok := toFloat(b); ok </span><span class="cov3" title="2">{
                                 return ai &lt; bi
                         }</span>
                 }
@@ -954,17 +781,17 @@ func compare(a any, op string, b any) bool <span class="cov8" title="1">{
         <span class="cov0" title="0">return false</span>
 }
 
-func toFloat(v any) (float64, bool) <span class="cov8" title="1">{
+func toFloat(v any) (float64, bool) <span class="cov8" title="12">{
         switch n := v.(type) </span>{
-        case float64:<span class="cov8" title="1">
+        case float64:<span class="cov3" title="2">
                 return n, true</span>
-        case float32:<span class="cov8" title="1">
+        case float32:<span class="cov1" title="1">
                 return float64(n), true</span>
-        case int:<span class="cov8" title="1">
+        case int:<span class="cov6" title="7">
                 return float64(n), true</span>
-        case int64:<span class="cov8" title="1">
+        case int64:<span class="cov1" title="1">
                 return float64(n), true</span>
-        case string:<span class="cov8" title="1">
+        case string:<span class="cov1" title="1">
                 f, err := strconv.ParseFloat(n, 64)
                 return f, err == nil</span>
         default:<span class="cov0" title="0">
@@ -973,70 +800,7 @@ func toFloat(v any) (float64, bool) <span class="cov8" title="1">{
 }
 </pre>
 		
-		<pre class="file" id="file9" style="display: none">package query
-
-import (
-        "encoding/json"
-        "fmt"
-
-        "github.com/aprksy/knitknot/pkg/ports/query"
-        "github.com/aprksy/knitknot/pkg/ports/types"
-)
-
-var _ query.ResultSet = (*ResultSet)(nil)
-
-func NewResultSet(items []map[string]*types.Node) *ResultSet <span class="cov8" title="1">{
-        // Make a shallow copy to prevent mutation
-        copied := make([]map[string]*types.Node, len(items))
-        for i, row := range items </span><span class="cov8" title="1">{
-                copied[i] = copyMap(row)
-        }</span>
-        <span class="cov8" title="1">return &amp;ResultSet{items: copied}</span>
-}
-
-// ResultSet holds the results of a query execution.
-// Each item is a mapping from variable name (e.g., "n", "s") to Node.
-type ResultSet struct {
-        items []map[string]*types.Node
-}
-
-// Len returns the number of rows.
-func (rs *ResultSet) Len() int <span class="cov8" title="1">{
-        return len(rs.items)
-}</span>
-
-// Empty checks if no results were found.
-func (rs *ResultSet) Empty() bool <span class="cov8" title="1">{
-        return len(rs.items) == 0
-}</span>
-
-// Empty checks if no results were found.
-func (rs *ResultSet) Items() []map[string]*types.Node <span class="cov8" title="1">{
-        return rs.items
-}</span>
-
-func (r *ResultSet) MarshalJSON() ([]byte, error) <span class="cov0" title="0">{
-        out := make([]map[string]*types.Node, len(r.items))
-        for i, row := range r.items </span><span class="cov0" title="0">{
-                copied := make(map[string]*types.Node)
-                for k, v := range row </span><span class="cov0" title="0">{
-                        copied[k] = v
-                }</span>
-                <span class="cov0" title="0">out[i] = copied</span>
-        }
-        <span class="cov0" title="0">return json.Marshal(out)</span>
-}
-
-func (r *ResultSet) String() string <span class="cov0" title="0">{
-        data, err := json.MarshalIndent(r, "", "  ")
-        if err != nil </span><span class="cov0" title="0">{
-                return fmt.Sprintf("ResultSet(error: %v)", err)
-        }</span>
-        <span class="cov0" title="0">return string(data)</span>
-}
-</pre>
-		
-		<pre class="file" id="file10" style="display: none">// internal/storage/inmem/inmem.go
+		<pre class="file" id="file5" style="display: none">// internal/storage/inmem/inmem.go
 package inmem
 
 import (
@@ -1057,14 +821,14 @@ type Storage struct {
         edges map[string]*types.Edge
 }
 
-func New() *Storage <span class="cov8" title="1">{
+func New() *Storage <span class="cov8" title="19">{
         return &amp;Storage{
                 nodes: make(map[string]*types.Node),
                 edges: make(map[string]*types.Edge),
         }
 }</span>
 
-func (s *Storage) AddNode(label string, props map[string]any) (string, error) <span class="cov8" title="1">{
+func (s *Storage) AddNode(label string, props map[string]any) (string, error) <span class="cov9" title="26">{
         id := generateID()
         node := &amp;types.Node{
                 ID:        id,
@@ -1079,11 +843,11 @@ func (s *Storage) AddNode(label string, props map[string]any) (string, error) <s
         if _, exists := s.nodes[id]; exists </span><span class="cov0" title="0">{
                 return "", errors.New("node already exists")
         }</span>
-        <span class="cov8" title="1">s.nodes[id] = node
+        <span class="cov9" title="26">s.nodes[id] = node
         return id, nil</span>
 }
 
-func (s *Storage) AddToSubgraph(n *types.Node, sgName, sgDesc string) <span class="cov8" title="1">{
+func (s *Storage) AddToSubgraph(n *types.Node, sgName, sgDesc string) <span class="cov7" title="16">{
         subgraph := &amp;types.Subgraph{
                 Name:        sgName,
                 Description: sgDesc,
@@ -1095,20 +859,20 @@ func (s *Storage) RemoveFromSubgraph(n *types.Node, sgName string) <span class="
         delete(n.Subgraphs, sgName)
 }</span>
 
-func (s *Storage) AddEdge(from, to, kind string, props map[string]any) error <span class="cov8" title="1">{
+func (s *Storage) AddEdge(from, to, kind string, props map[string]any) error <span class="cov6" title="10">{
         s.mu.RLock()
         _, fromOk := s.nodes[from]
         _, toOk := s.nodes[to]
         s.mu.RUnlock()
 
-        if !fromOk </span><span class="cov0" title="0">{
+        if !fromOk </span><span class="cov1" title="1">{
                 return errors.New("source node not found")
         }</span>
-        <span class="cov8" title="1">if !toOk </span><span class="cov0" title="0">{
+        <span class="cov6" title="9">if !toOk </span><span class="cov1" title="1">{
                 return errors.New("target node not found")
         }</span>
 
-        <span class="cov8" title="1">id := fmt.Sprintf("%s-&gt;%s@%s", from, to, kind)
+        <span class="cov6" title="8">id := fmt.Sprintf("%s-&gt;%s@%s", from, to, kind)
         edge := &amp;types.Edge{
                 ID:        id,
                 From:      from,
@@ -1124,35 +888,42 @@ func (s *Storage) AddEdge(from, to, kind string, props map[string]any) error <sp
         return nil</span>
 }
 
-func (s *Storage) GetNode(id string) (*types.Node, bool) <span class="cov8" title="1">{
+func (s *Storage) GetNode(id string) (*types.Node, bool) <span class="cov7" title="14">{
         s.mu.RLock()
         defer s.mu.RUnlock()
         n, ok := s.nodes[id]
         return n, ok
 }</span>
 
-func (s *Storage) GetAllNodes() []*types.Node <span class="cov8" title="1">{
+func (s *Storage) GetEdge(id string) (*types.Edge, bool) <span class="cov1" title="1">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        e, ok := s.edges[id]
+        return e, ok
+}</span>
+
+func (s *Storage) GetAllNodes() []*types.Node <span class="cov1" title="1">{
         s.mu.RLock()
         defer s.mu.RUnlock()
         list := make([]*types.Node, 0, len(s.nodes))
-        for _, n := range s.nodes </span><span class="cov8" title="1">{
+        for _, n := range s.nodes </span><span class="cov2" title="2">{
                 list = append(list, n)
         }</span>
-        <span class="cov8" title="1">return list</span>
+        <span class="cov1" title="1">return list</span>
 }
 
-func (s *Storage) GetAllEdges() []*types.Edge <span class="cov8" title="1">{
+func (s *Storage) GetAllEdges() []*types.Edge <span class="cov1" title="1">{
         s.mu.RLock()
         defer s.mu.RUnlock()
         list := make([]*types.Edge, 0, len(s.edges))
-        for _, e := range s.edges </span><span class="cov8" title="1">{
+        for _, e := range s.edges </span><span class="cov1" title="1">{
                 list = append(list, e)
         }</span>
-        <span class="cov8" title="1">return list</span>
+        <span class="cov1" title="1">return list</span>
 }
 
-func (s *Storage) GetEdgesFrom(from string) []*types.Edge <span class="cov8" title="1">{
-        return s.findEdges(func(e *types.Edge) bool </span><span class="cov8" title="1">{ return e.From == from }</span>)
+func (s *Storage) GetEdgesFrom(from string) []*types.Edge <span class="cov4" title="4">{
+        return s.findEdges(func(e *types.Edge) bool </span><span class="cov3" title="3">{ return e.From == from }</span>)
 }
 
 func (s *Storage) GetEdgesTo(to string) []*types.Edge <span class="cov0" title="0">{
@@ -1163,51 +934,77 @@ func (s *Storage) GetEdgesByKind(kind string) []*types.Edge <span class="cov0" t
         return s.findEdges(func(e *types.Edge) bool </span><span class="cov0" title="0">{ return e.Kind == kind }</span>)
 }
 
-func (s *Storage) findEdges(match func(*types.Edge) bool) []*types.Edge <span class="cov8" title="1">{
+func (s *Storage) UpdateNode(id string, props map[string]any) error <span class="cov3" title="3">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+
+        node, ok := s.nodes[id]
+        if !ok </span><span class="cov1" title="1">{
+                return fmt.Errorf("node not found")
+        }</span>
+
+        <span class="cov2" title="2">node.Props = copyMap(props)
+        return nil</span>
+}
+
+func (s *Storage) UpdateEdge(id string, props map[string]any) error <span class="cov0" title="0">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+
+        edge, ok := s.edges[id]
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("node not found")
+        }</span>
+
+        <span class="cov0" title="0">edge.Props = copyMap(props)
+        return nil</span>
+}
+
+func (s *Storage) findEdges(match func(*types.Edge) bool) []*types.Edge <span class="cov4" title="4">{
         s.mu.RLock()
         defer s.mu.RUnlock()
         var result []*types.Edge
-        for _, e := range s.edges </span><span class="cov8" title="1">{
-                if match(e) </span><span class="cov8" title="1">{
+        for _, e := range s.edges </span><span class="cov3" title="3">{
+                if match(e) </span><span class="cov3" title="3">{
                         result = append(result, e)
                 }</span>
         }
-        <span class="cov8" title="1">return result</span>
+        <span class="cov4" title="4">return result</span>
 }
 
-func (s *Storage) GetNodesIn(subgraph string) []*types.Node <span class="cov8" title="1">{
+func (s *Storage) GetNodesIn(subgraph string) []*types.Node <span class="cov3" title="3">{
         s.mu.RLock()
         defer s.mu.RUnlock()
 
         var result []*types.Node
-        for _, n := range s.nodes </span><span class="cov8" title="1">{
-                if _, exists := n.Subgraphs[subgraph]; exists </span><span class="cov8" title="1">{
+        for _, n := range s.nodes </span><span class="cov5" title="6">{
+                if _, exists := n.Subgraphs[subgraph]; exists </span><span class="cov4" title="4">{
                         result = append(result, n)
                 }</span>
         }
-        <span class="cov8" title="1">return result</span>
+        <span class="cov3" title="3">return result</span>
 }
 
-func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge <span class="cov8" title="1">{
+func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge <span class="cov1" title="1">{
         s.mu.RLock()
         defer s.mu.RUnlock()
 
         var result []*types.Edge
-        for _, e := range s.edges </span><span class="cov8" title="1">{
+        for _, e := range s.edges </span><span class="cov1" title="1">{
                 // Edge belongs to subgraph if both ends do AND edge hasn't been removed
                 fromNode, ok1 := s.nodes[e.From]
                 toNode, ok2 := s.nodes[e.To]
                 if !ok1 || !ok2 </span><span class="cov0" title="0">{
                         continue</span>
                 }
-                <span class="cov8" title="1">sgInstance, fromNodeExists := fromNode.Subgraphs[subgraph]
+                <span class="cov1" title="1">sgInstance, fromNodeExists := fromNode.Subgraphs[subgraph]
                 _, toNodeExists := toNode.Subgraphs[subgraph]
 
-                if fromNodeExists &amp;&amp; toNodeExists </span><span class="cov8" title="1">{
+                if fromNodeExists &amp;&amp; toNodeExists </span><span class="cov1" title="1">{
                         // Optionally: ensure edge itself includes subgraph
                         if _, exists := e.Subgraphs[subgraph]; exists </span><span class="cov0" title="0">{
                                 result = append(result, e)
-                        }</span> else<span class="cov8" title="1"> {
+                        }</span> else<span class="cov1" title="1"> {
                                 // Auto-inherit
                                 cp := *e
                                 cp.Subgraphs[subgraph] = sgInstance
@@ -1215,28 +1012,50 @@ func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge <span class="cov8" t
                         }</span>
                 }
         }
-        <span class="cov8" title="1">return result</span>
+        <span class="cov1" title="1">return result</span>
+}
+
+func (s *Storage) DeleteNode(id string) error <span class="cov3" title="3">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        if _, ok := s.nodes[id]; !ok </span><span class="cov1" title="1">{
+                return fmt.Errorf("node not found")
+        }</span>
+        <span class="cov2" title="2">delete(s.nodes, id)
+        // Optionally remove edges too
+        return nil</span>
+}
+
+func (s *Storage) DeleteEdge(from, to, kind string) error <span class="cov3" title="3">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        id := fmt.Sprintf("%s-&gt;%s@%s", from, to, kind)
+        if _, ok := s.edges[id]; !ok </span><span class="cov1" title="1">{
+                return fmt.Errorf("edge not found")
+        }</span>
+        <span class="cov2" title="2">delete(s.edges, id)
+        return nil</span>
 }
 
 // Helpers
-func copyMap(m map[string]any) map[string]any <span class="cov8" title="1">{
-        if m == nil </span><span class="cov8" title="1">{
+func copyMap(m map[string]any) map[string]any <span class="cov10" title="36">{
+        if m == nil </span><span class="cov8" title="17">{
                 return nil
         }</span>
-        <span class="cov8" title="1">cp := make(map[string]any, len(m))
-        for k, v := range m </span><span class="cov8" title="1">{
+        <span class="cov8" title="19">cp := make(map[string]any, len(m))
+        for k, v := range m </span><span class="cov9" title="25">{
                 cp[k] = v
         }</span>
-        <span class="cov8" title="1">return cp</span>
+        <span class="cov8" title="19">return cp</span>
 }
 
-func generateID() string <span class="cov8" title="1">{
+func generateID() string <span class="cov9" title="26">{
         // Reuse your ID generator
         return fmt.Sprintf("n%d", rand.Intn(1000000)) // simplify for now
 }</span>
 </pre>
 		
-		<pre class="file" id="file11" style="display: none">package inmem
+		<pre class="file" id="file6" style="display: none">package inmem
 
 import (
         "encoding/gob"
@@ -1250,7 +1069,7 @@ import (
 )
 
 // Save writes the current graph state to disk
-func (s *Storage) Save(filename string, engine *graph.GraphEngine) error <span class="cov8" title="1">{
+func (s *Storage) Save(filename string, engine *graph.GraphEngine) error <span class="cov6" title="3">{
         // Ensure dir exists
         _ = os.MkdirAll(filepath.Dir(filename), 0755)
 
@@ -1258,7 +1077,7 @@ func (s *Storage) Save(filename string, engine *graph.GraphEngine) error <span c
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov8" title="1">defer func() </span><span class="cov8" title="1">{
+        <span class="cov6" title="3">defer func() </span><span class="cov6" title="3">{
                 if closeErr := f.Close(); closeErr != nil </span><span class="cov0" title="0">{
                         if err == nil </span><span class="cov0" title="0">{
                                 err = closeErr
@@ -1268,7 +1087,7 @@ func (s *Storage) Save(filename string, engine *graph.GraphEngine) error <span c
                 }
         }()
 
-        <span class="cov8" title="1">saved := &amp;file.SavedGraph{
+        <span class="cov6" title="3">saved := &amp;file.SavedGraph{
                 Version: file.CurrentVersion,
                 Nodes:   make(map[string]*types.Node),
                 Edges:   make(map[string]*types.Edge),
@@ -1279,26 +1098,26 @@ func (s *Storage) Save(filename string, engine *graph.GraphEngine) error <span c
         defer s.mu.RUnlock()
 
         // Copy nodes and edges
-        for id, n := range s.nodes </span><span class="cov8" title="1">{
+        for id, n := range s.nodes </span><span class="cov10" title="6">{
                 saved.Nodes[id] = n
         }</span>
-        <span class="cov8" title="1">for id, e := range s.edges </span><span class="cov8" title="1">{
+        <span class="cov6" title="3">for id, e := range s.edges </span><span class="cov6" title="3">{
                 saved.Edges[id] = e
         }</span>
 
-        <span class="cov8" title="1">saved.Verbs = engine.Verbs().All()
+        <span class="cov6" title="3">saved.Verbs = engine.Verbs().All()
 
         encoder := gob.NewEncoder(f)
         return encoder.Encode(saved)</span>
 }
 
 // Load populates the storage from a file
-func (s *Storage) Load(filename string, engine *graph.GraphEngine) error <span class="cov8" title="1">{
+func (s *Storage) Load(filename string, engine *graph.GraphEngine) error <span class="cov6" title="3">{
         f, err := os.Open(filename)
-        if err != nil </span><span class="cov8" title="1">{
+        if err != nil </span><span class="cov1" title="1">{
                 return err
         }</span>
-        <span class="cov8" title="1">defer func() </span><span class="cov8" title="1">{
+        <span class="cov4" title="2">defer func() </span><span class="cov4" title="2">{
                 if closeErr := f.Close(); closeErr != nil </span><span class="cov0" title="0">{
                         if err == nil </span><span class="cov0" title="0">{
                                 err = closeErr
@@ -1308,17 +1127,17 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) error <span c
                 }
         }()
 
-        <span class="cov8" title="1">var saved file.SavedGraph
+        <span class="cov4" title="2">var saved file.SavedGraph
         decoder := gob.NewDecoder(f)
         if err := decoder.Decode(&amp;saved); err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
 
-        <span class="cov8" title="1">if saved.Version != file.CurrentVersion </span><span class="cov0" title="0">{
+        <span class="cov4" title="2">if saved.Version != file.CurrentVersion </span><span class="cov0" title="0">{
                 return fmt.Errorf("unsupported version: %s (expected %s)", saved.Version, file.CurrentVersion)
         }</span>
 
-        <span class="cov8" title="1">s.mu.Lock()
+        <span class="cov4" title="2">s.mu.Lock()
         defer s.mu.Unlock()
 
         // Clear existing
@@ -1326,24 +1145,24 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) error <span c
         s.edges = make(map[string]*types.Edge)
 
         // Restore
-        for id, n := range saved.Nodes </span><span class="cov8" title="1">{
+        for id, n := range saved.Nodes </span><span class="cov7" title="4">{
                 s.nodes[id] = n
         }</span>
-        <span class="cov8" title="1">for id, e := range saved.Edges </span><span class="cov8" title="1">{
+        <span class="cov4" title="2">for id, e := range saved.Edges </span><span class="cov4" title="2">{
                 s.edges[id] = e
         }</span>
 
         // After restoring nodes/edges
-        <span class="cov8" title="1">for name, verb := range saved.Verbs </span><span class="cov8" title="1">{
+        <span class="cov4" title="2">for name, verb := range saved.Verbs </span><span class="cov1" title="1">{
                 engine.RegisterVerb(name, verb) // assuming engine is passed in
         }</span>
 
-        <span class="cov8" title="1">return nil</span>
+        <span class="cov4" title="2">return nil</span>
 }
 </pre>
 		
 		</div>
-	
+	</body>
 	<script>
 	(function() {
 		var files = document.getElementById('files');
@@ -1371,5 +1190,4 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) error <span c
 		}
 	})();
 	</script>
-
-</body></html>
+</html>

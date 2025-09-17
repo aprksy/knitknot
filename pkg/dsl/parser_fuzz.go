@@ -1,3 +1,5 @@
+//go:build !exclude_from_coverage
+
 package dsl
 
 import (
