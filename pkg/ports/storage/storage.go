@@ -14,5 +14,9 @@ type StorageEngine interface {
 	GetEdgesByKind(kind string) []*types.Edge
 	GetNodesIn(subgraph string) []*types.Node
 	GetEdgesIn(subgraph string) []*types.Edge
-	// WithVerbs(vr *types.VerbRegistry)
+
+	UpdateNode(id string, props map[string]any) error
+	UpdateEdge(id string, props map[string]any) error
+	DeleteNode(id string) error
+	DeleteEdge(from, to, kind string) error
 }
