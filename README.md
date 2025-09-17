@@ -49,7 +49,7 @@ dot -Tsvg graph.dot > graph.svg
 ## Learn More 
 - [DSL Syntax Guide](docs/dsl.md)
 - [Architecture](docs/architecture.md)
-- [Contribute](docs/CONTRIBUTING.md.md)
+- [Contribute](docs/CONTRIBUTING.md)
 
 ## Changelog
 - [Changelog](docs/CHANGELOG.md)
