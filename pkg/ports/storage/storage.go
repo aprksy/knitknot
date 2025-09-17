@@ -16,4 +16,7 @@ type StorageEngine interface {
 	GetEdgesIn(subgraph string) []*types.Edge
 
 	UpdateNode(id string, props map[string]any) error
+	UpdateEdge(id string, props map[string]any) error
+	DeleteNode(id string) error
+	DeleteEdge(from, to, kind string) error
 }

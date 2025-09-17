@@ -138,6 +138,19 @@ func (s *Storage) UpdateNode(id string, props map[string]any) error {
 	return nil
 }
 
+func (s *Storage) UpdateEdge(id string, props map[string]any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	edge, ok := s.edges[id]
+	if !ok {
+		return fmt.Errorf("node not found")
+	}
+
+	edge.Props = copyMap(props)
+	return nil
+}
+
 func (s *Storage) findEdges(match func(*types.Edge) bool) []*types.Edge {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -191,6 +204,28 @@ func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge {
 		}
 	}
 	return result
+}
+
+func (s *Storage) DeleteNode(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.nodes[id]; !ok {
+		return fmt.Errorf("node not found")
+	}
+	delete(s.nodes, id)
+	// Optionally remove edges too
+	return nil
+}
+
+func (s *Storage) DeleteEdge(from, to, kind string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id := fmt.Sprintf("%s->%s@%s", from, to, kind)
+	if _, ok := s.edges[id]; !ok {
+		return fmt.Errorf("edge not found")
+	}
+	delete(s.edges, id)
+	return nil
 }
 
 // Helpers
