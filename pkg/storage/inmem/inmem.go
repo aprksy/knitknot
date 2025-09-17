@@ -93,6 +93,13 @@ func (s *Storage) GetNode(id string) (*types.Node, bool) {
 	return n, ok
 }
 
+func (s *Storage) GetEdge(id string) (*types.Edge, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	e, ok := s.edges[id]
+	return e, ok
+}
+
 func (s *Storage) GetAllNodes() []*types.Node {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
