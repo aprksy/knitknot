@@ -52,6 +52,11 @@ func (ge *GraphEngine) GetNode(id string) (*types.Node, bool) {
 	return ge.storage.GetNode(id)
 }
 
+// GetEdge retrieves a edge by ID
+func (ge *GraphEngine) GetEdge(id string) (*types.Edge, bool) {
+	return ge.storage.GetEdge(id)
+}
+
 // Query runs a compiled plan using the query engine
 func (ge *GraphEngine) Query(ctx context.Context, plan *query.QueryPlan) (query.ResultSet, error) {
 	result, err := ge.query.Execute(ctx, ge.storage, plan)
