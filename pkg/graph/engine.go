@@ -78,3 +78,19 @@ func (ge *GraphEngine) RegisterVerb(name string, def types.Verb) {
 func (ge *GraphEngine) Verbs() *types.VerbRegistry {
 	return ge.verbs
 }
+
+func (ge *GraphEngine) UpdateNode(id string, props map[string]any) error {
+	return ge.storage.UpdateNode(id, props)
+}
+
+func (ge *GraphEngine) UpdateEdge(id string, props map[string]any) error {
+	return ge.storage.UpdateEdge(id, props)
+}
+
+func (ge *GraphEngine) DeleteNode(id string) error {
+	return ge.storage.DeleteNode(id)
+}
+
+func (ge *GraphEngine) DeleteEdge(from, to, kind string) error {
+	return ge.storage.DeleteEdge(from, to, kind)
+}
