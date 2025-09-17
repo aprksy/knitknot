@@ -119,6 +119,18 @@ func handleLine(ctx context.Context, input string, engine *graph.GraphEngine, ou
 	case lower == "list verbs", lower == "verbs":
 		return execListVerbs(engine, out)
 
+	case strings.HasPrefix(lower, "addnode "):
+		return execAddNode(engine, input[8:], out)
+
+	case strings.HasPrefix(lower, "connect "):
+		return execConnect(engine, input[8:], out)
+
+	case strings.HasPrefix(lower, "update "):
+		return execUpdate(engine, input[7:], out)
+
+	case strings.HasPrefix(lower, "delete "):
+		return execDelete(engine, input[7:], out)
+
 	default:
 		return execQuery(ctx, input, engine, out)
 	}
@@ -127,6 +139,9 @@ func handleLine(ctx context.Context, input string, engine *graph.GraphEngine, ou
 
 func printHelp(out io.Writer) {
 	fmt.Fprintln(out, "KnitKnot REPL Commands:")
+	fmt.Fprintln(out, "  ADDNODE Label key=value ...          - Create a new node")
+	fmt.Fprintln(out, "  CONNECT A --rel--> B                 - Connect two nodes")
+	fmt.Fprintln(out, "    Optional: --rel prop=123-->        - With edge properties")
 	fmt.Fprintln(out, "  Find('Label').Where(...)             - Run a query")
 	fmt.Fprintln(out, "  EXPLAIN Find(...)                    - Show query plan")
 	fmt.Fprintln(out, "  explain <query>                      - Same, case-insensitive")
