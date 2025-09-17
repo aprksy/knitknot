@@ -1,7 +1,8 @@
 # KnitKnot DSL Syntax
 
-## Railroad Diagram
-TODO
+## Syntax Diagram
+TODO: Use railroad diagram
+![DSL Syntax Diagram](dsl-syntax.png)
 
 ## BNF Syntax
 TODO
