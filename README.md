@@ -49,9 +49,12 @@ dot -Tsvg graph.dot > graph.svg
 ## Learn More 
 - [DSL Syntax Guide](docs/dsl.md)
 - [Architecture](docs/architecture.md)
-- [Contribute](docs/contributing.md)
+- [Contribute](docs/CONTRIBUTING.md.md)
+
+## Changelog
+- [Changelog](docs/CHANGELOG.md)
      
 
 ## License 
 
-MIT  © 2025 [aprksy](https://github.com/aprksy)
+[MIT](docs/LICENSE.md)  © 2025 [aprksy](https://github.com/aprksy)
