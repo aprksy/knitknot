@@ -1,5 +1,7 @@
 # Phases
 
+This is draft for roadmap & milestones definition
+
 1. Library
 2. Mini DB
 3. Distributed
