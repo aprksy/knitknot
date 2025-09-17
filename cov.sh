@@ -1,2 +1,3 @@
-go test -coverpkg=github.com/aprksy/knitknot/pkg/... -coverprofile=coverage.out ./... 
-go tool cover -func=coverage.out | grep -v "^cmd/" | grep -v "^internal/util" | grep -v "^parser_fuzz.go" | tail -n 1
+gocovmerge $(find . -name "*.out") > merged.coverprofile
+go tool cover -func=merged.coverprofile
+go tool cover -html=merged.coverprofile -o coverage.html

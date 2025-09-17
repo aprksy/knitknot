@@ -52,6 +52,11 @@ func (ge *GraphEngine) GetNode(id string) (*types.Node, bool) {
 	return ge.storage.GetNode(id)
 }
 
+// GetEdge retrieves a edge by ID
+func (ge *GraphEngine) GetEdge(id string) (*types.Edge, bool) {
+	return ge.storage.GetEdge(id)
+}
+
 // Query runs a compiled plan using the query engine
 func (ge *GraphEngine) Query(ctx context.Context, plan *query.QueryPlan) (query.ResultSet, error) {
 	result, err := ge.query.Execute(ctx, ge.storage, plan)
@@ -77,4 +82,20 @@ func (ge *GraphEngine) RegisterVerb(name string, def types.Verb) {
 // Verbs returns the verb registry (for introspection)
 func (ge *GraphEngine) Verbs() *types.VerbRegistry {
 	return ge.verbs
+}
+
+func (ge *GraphEngine) UpdateNode(id string, props map[string]any) error {
+	return ge.storage.UpdateNode(id, props)
+}
+
+func (ge *GraphEngine) UpdateEdge(id string, props map[string]any) error {
+	return ge.storage.UpdateEdge(id, props)
+}
+
+func (ge *GraphEngine) DeleteNode(id string) error {
+	return ge.storage.DeleteNode(id)
+}
+
+func (ge *GraphEngine) DeleteEdge(from, to, kind string) error {
+	return ge.storage.DeleteEdge(from, to, kind)
 }

@@ -1,4 +1,6 @@
-# KnitKnot 🧶
+[![Go Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen)](coverage.html)
+
+# KnitKnot
 
 > *A lightweight, embeddable property graph engine with a fluent query DSL.*
 

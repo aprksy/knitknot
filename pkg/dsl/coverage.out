@@ -1,15 +1,4 @@
 mode: atomic
-github.com/aprksy/knitknot/pkg/dsl/ast.go:13.39,14.24 1 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:14.24,16.3 1 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:17.2,17.11 1 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:26.44,26.67 1 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:27.45,27.46 0 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:34.45,34.46 0 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:35.44,35.62 1 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:48.48,48.49 0 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:49.47,49.65 1 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:56.48,56.49 0 0
-github.com/aprksy/knitknot/pkg/dsl/ast.go:57.47,57.79 1 0
 github.com/aprksy/knitknot/pkg/dsl/lexer.go:10.36,16.2 3 16
 github.com/aprksy/knitknot/pkg/dsl/lexer.go:18.28,19.36 1 393
 github.com/aprksy/knitknot/pkg/dsl/lexer.go:19.36,21.3 1 27
@@ -79,5 +68,3 @@ github.com/aprksy/knitknot/pkg/dsl/parser.go:119.2,120.12 2 0
 github.com/aprksy/knitknot/pkg/dsl/parser.go:123.47,124.27 1 61
 github.com/aprksy/knitknot/pkg/dsl/parser.go:124.27,127.3 2 47
 github.com/aprksy/knitknot/pkg/dsl/parser.go:128.2,129.14 2 14
-github.com/aprksy/knitknot/pkg/dsl/parser_fuzz.go:8.31,23.42 11 0
-github.com/aprksy/knitknot/pkg/dsl/parser_fuzz.go:23.42,27.3 2 0
