@@ -79,3 +79,5 @@ github.com/aprksy/knitknot/pkg/dsl/parser.go:119.2,120.12 2 0
 github.com/aprksy/knitknot/pkg/dsl/parser.go:123.47,124.27 1 61
 github.com/aprksy/knitknot/pkg/dsl/parser.go:124.27,127.3 2 47
 github.com/aprksy/knitknot/pkg/dsl/parser.go:128.2,129.14 2 14
+github.com/aprksy/knitknot/pkg/dsl/parser_fuzz.go:8.31,23.42 11 0
+github.com/aprksy/knitknot/pkg/dsl/parser_fuzz.go:23.42,27.3 2 0
