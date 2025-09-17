@@ -125,6 +125,19 @@ func (s *Storage) GetEdgesByKind(kind string) []*types.Edge {
 	return s.findEdges(func(e *types.Edge) bool { return e.Kind == kind })
 }
 
+func (s *Storage) UpdateNode(id string, props map[string]any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	node, ok := s.nodes[id]
+	if !ok {
+		return fmt.Errorf("node not found")
+	}
+
+	node.Props = copyMap(props)
+	return nil
+}
+
 func (s *Storage) findEdges(match func(*types.Edge) bool) []*types.Edge {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
