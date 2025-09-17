@@ -76,3 +76,6 @@ Find a customer that lives in Dallas, which has done PayPal transaction more tha
 ```
 Find('customer').Where('city', '=', 'Dallas').Has('make_payment_using', 'PayPal').WhereEdge('Trx_count', '>', 5)
 ```
+
+## More on Syntax
+- [More technical Ref](dsl-syntax.md)
