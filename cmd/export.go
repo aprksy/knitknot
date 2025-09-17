@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/aprksy/knitknot/pkg/graph"
+	"github.com/aprksy/knitknot/pkg/exporter/dot"
 	"github.com/aprksy/knitknot/pkg/ports/types"
 	"github.com/spf13/cobra"
 )
@@ -61,7 +61,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		defer file.Close()
+		defer func() {
+			if closeErr := file.Close(); closeErr != nil {
+				if err == nil {
+					err = closeErr
+				} else {
+					fmt.Printf("Error closing file: %v (original error: %v)\n", closeErr, err)
+				}
+			}
+		}()
 		writer = file
 	}
 
@@ -105,7 +113,7 @@ func exportToSVG(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
 	// Write DOT to pipe
 	go func() {
 		defer writer.Close()
-		_ = graph.ExportToDOT(nodes, edges, writer)
+		_ = dot.ExportToDOT(nodes, edges, writer)
 	}()
 
 	// Wait for completion
@@ -113,5 +121,5 @@ func exportToSVG(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
 }
 
 func exportToDOT(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
-	return graph.ExportToDOT(nodes, edges, w)
+	return dot.ExportToDOT(nodes, edges, w)
 }

@@ -23,8 +23,6 @@ A lightweight, embeddable graph database with fluent querying and visualization.
 	},
 }
 
-var verbose bool
-
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

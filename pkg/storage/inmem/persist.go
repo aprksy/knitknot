@@ -11,10 +11,6 @@ import (
 	"github.com/aprksy/knitknot/pkg/storage/file"
 )
 
-// func (s *Storage) WithVerbs(vr *types.VerbRegistry) {
-// 	s.verbs = vr
-// }
-
 // Save writes the current graph state to disk
 func (s *Storage) Save(filename string, engine *graph.GraphEngine) error {
 	// Ensure dir exists
@@ -24,7 +20,15 @@ func (s *Storage) Save(filename string, engine *graph.GraphEngine) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			if err == nil {
+				err = closeErr
+			} else {
+				fmt.Printf("Error closing file: %v (original error: %v)\n", closeErr, err)
+			}
+		}
+	}()
 
 	saved := &file.SavedGraph{
 		Version: file.CurrentVersion,
@@ -56,7 +60,15 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			if err == nil {
+				err = closeErr
+			} else {
+				fmt.Printf("Error closing file: %v (original error: %v)\n", closeErr, err)
+			}
+		}
+	}()
 
 	var saved file.SavedGraph
 	decoder := gob.NewDecoder(f)

@@ -54,10 +54,6 @@ func (qe *DefaultQueryEngine) Execute(
 		filtered = filtered[:*plan.LimitVal]
 	}
 
-	// jsonFiltered, _ := json.MarshalIndent(filtered, "", "  ")
-	// fmt.Printf("Filtered Result: %v\n", string(jsonFiltered))
-	// fmt.Println()
-
 	return NewResultSet(filtered), nil
 }
 
@@ -94,6 +90,7 @@ func (qe *DefaultQueryEngine) applyAllFilters(rows []map[string]*types.Node, fil
 			result = append(result, row)
 		}
 	}
+
 	return result
 }
 
@@ -131,7 +128,7 @@ func (qe *DefaultQueryEngine) expandViaEdge(
 				continue
 			}
 
-			// 🔍 Check edge filters BEFORE accepting
+			// Check edge filters BEFORE accepting
 			if !qe.matchEdgeFilters(e, edgePattern.Filters) {
 				continue
 			}
@@ -147,6 +144,7 @@ func (qe *DefaultQueryEngine) expandViaEdge(
 			}
 
 			newRow := copyMap(row)
+			// newRow := map[string]*types.Node{}
 			newRow[toVar] = toNode
 
 			// Node/prop filters applied later

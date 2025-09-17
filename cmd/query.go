@@ -68,7 +68,7 @@ func runQuery(cmd *cobra.Command, args []string) error {
 		engine = engine.WithSubgraph(globalFlags.subgraph)
 	}
 
-	builder, err := applyAST(engine, ast)
+	builder, err := ApplyAST(engine, ast)
 	if err != nil {
 		return fmt.Errorf("exec error: %w", err)
 	}
@@ -147,7 +147,7 @@ func printExplain(queryStr string, ast *dsl.Query) {
 	}
 }
 
-func applyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
+func ApplyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 	var builder *graph.Builder
 
 	for _, method := range q.Methods {

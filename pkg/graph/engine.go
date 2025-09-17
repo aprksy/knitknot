@@ -66,7 +66,6 @@ func (ge *GraphEngine) Storage() storage.StorageEngine {
 // WithVerbs allows replacing or extending the registry
 func (ge *GraphEngine) WithVerbs(vr *types.VerbRegistry) *GraphEngine {
 	ge.verbs = vr
-	// ge.storage.WithVerbs(ge.verbs)
 	return ge
 }
 

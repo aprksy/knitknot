@@ -28,11 +28,12 @@ func (p *Parser) nextToken() {
 func (p *Parser) Parse() (*Query, error) {
 	query := &Query{Methods: []*MethodCall{}}
 
+	// fmt.Printf("%s: %s, %s: %s\n", p.curToken.Type, p.curToken.Literal, p.peekToken.Type, p.peekToken.Literal)
 	for p.curToken.Type != EOF {
 		if p.curToken.Type == Ident {
 			method := p.parseMethodCall()
 			if method == nil {
-				return nil, fmt.Errorf("failed to parse method (pos: %d)", p.l.position-1)
+				return nil, fmt.Errorf("failed to parse method at pos %d. %s", p.l.position-1, p.errors[0])
 			}
 			query.Methods = append(query.Methods, method)
 		} else {
@@ -44,6 +45,10 @@ func (p *Parser) Parse() (*Query, error) {
 		} else {
 			break
 		}
+	}
+
+	if p.curToken.Type == EOF {
+		return nil, fmt.Errorf("expected method name, got %v at pos %d", p.curToken.Type, p.curToken.PosX)
 	}
 
 	return query, nil
@@ -90,9 +95,13 @@ func (p *Parser) parseArguments() []Expression {
 		}
 	}
 
-	if p.peekToken.Type == RParen {
-		p.nextToken()
-		return args
+	// if p.peekToken.Type == RParen {
+	// 	p.nextToken()
+	// 	return args
+	// }
+
+	if !p.expectPeek(RParen) {
+		return nil
 	}
 
 	return args
@@ -106,8 +115,6 @@ func (p *Parser) parseExpression() Expression {
 		if v, err := strconv.Atoi(p.curToken.Literal); err == nil {
 			return &NumberLiteral{Value: v}
 		}
-	case Ident:
-		return &Identifier{Value: p.curToken.Literal}
 	}
 	p.errors = append(p.errors, fmt.Sprintf("unexpected token: %s", p.curToken.Literal))
 	return nil
