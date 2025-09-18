@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KnitKnot – A Fluent Graph Engine</title>
+  <meta name="description" content="A lightweight, embeddable property graph engine with a fluent query DSL." />
+
+  <!-- Favicon (optional) -->
+  <link rel="icon" href="logo/favicon.svg" sizes="any" type="image/svg+xml">
+
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1a1a1a;
+      --accent: #4a6fa5;
+      --muted: #6c757d;
+      --border: #e9ecef;
+      --pre-bg: #f8f9fa;
+      --shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121212;
+        --text: #e0e0e0;
+        --accent: #6ba6ff;
+        --muted: #999999;
+        --border: #333333;
+        --pre-bg: #1e1e1e;
+        --shadow: 0 4px 16px rgba(0,0,0,0.3);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      padding: 3rem 0;
+    }
+
+    h1 {
+      font-size: 2.8rem;
+      margin-bottom: 0.5rem;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    h1 span.logo { font-size: 1.8em; }
+
+    p.tagline {
+      font-size: 1.2rem;
+      color: var(--muted);
+      max-width: 600px;
+      margin: 0 auto 2rem;
+    }
+
+    .badges {
+      margin: 1rem auto;
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .badges a, .badges img {
+      height: 24px;
+    }
+
+    main {
+      padding: 2rem 0;
+    }
+
+    section {
+      margin-bottom: 3.5rem;
+    }
+
+    h2 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid var(--accent);
+      display: inline-block;
+      padding-bottom: 0.3rem;
+    }
+
+    p, ul, ol {
+      margin-bottom: 1rem;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    pre {
+      background: var(--pre-bg);
+      padding: 1.2rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      line-height: 1.4;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+      background: var(--pre-bg);
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-size: 0.95em;
+    }
+
+    .demo {
+      position: relative;
+      margin: 2rem 0;
+    }
+
+    .demo-output {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--pre-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: monospace;
+      white-space: pre;
+      display: none;
+    }
+
+    button.run {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+
+    button.run:hover {
+      opacity: 0.9;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    .feature-card {
+      background: var(--pre-bg);
+      padding: 1.5rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      transition: transform 0.2s;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+    }
+
+    footer {
+      text-align: center;
+      padding: 3rem 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      border-top: 1px solid var(--border);
+      margin-top: 4rem;
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 2.2rem;
+      }
+      .tagline {
+        font-size: 1.1rem;
+      }
+      pre {
+        font-size: 0.9em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+        <h1><span class="logo"><img src="logo/logo1.png" alt="knitknot-logo" /></span></h1>
+        <p class="tagline">A lightweight, embeddable property graph engine with a fluent query DSL.</p>
+
+        <div class="badges">
+            <a href="https://github.com/aprksy/knitknot"><img src="https://img.shields.io/badge/coverage-86%25-brightgreen" alt="Coverage"></a>
+        </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>Why KnitKnot?</h2>
+        <p>Most graph databases are heavy and complex. KnitKnot is different:</p>
+        <ul>
+          <li><strong>CLI-first</strong>: Query interactively like SQLite</li>
+          <li><strong>Fluent DSL</strong>: Write expressive queries: <code>Find('User').Has('skill', 'Go')</code></li>
+          <li><strong>Embeddable</strong>: Use as a Go library or standalone tool</li>
+          <li><strong>File-based</strong>: No server needed — data saved to <code>.gob</code></li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Quick Start</h2>
+        <p>Install via Go:</p>
+        <pre><code>go install github.com/aprksy/knitknot@latest</code></pre>
+
+        <p>Start the REPL:</p>
+        <pre><code>knitknot repl</code></pre>
+
+        <p>Run your first query:</p>
+        <div class="demo">
+          <pre><code>knitknot> Find('User').Has('has_skill', 'Go')</code></pre>
+          <button class="run" onclick="runDemo()">Run Query</button>
+          <div id="output" class="demo-output"></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Features</h2>
+        <div class="features">
+          <div class="feature-card">
+            <h3>REPL Shell</h3>
+            <p>Interactive exploration with history, syntax highlighting, and <code>EXPLAIN</code>.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Custom Verbs</h3>
+            <p>Define your own semantics: <code>DEFINE teaches TO Course VIA code</code></p>
+          </div>
+          <div class="feature-card">
+            <h3>Persistence</h3>
+            <p>Save/load full state including verbs and subgraphs.</p>
+          </div>
+          <div class="feature-card">
+            <h3>Visualize</h3>
+            <p>Export to DOT format and render with Graphviz.</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Syntax Demo</h2>
+        <p>Try editing the query below:</p>
+        <pre><code id="editable" contenteditable="true">Find('User').Where('n.age', '>', 30).Limit(5)</code></pre>
+        <button class="run" onclick="echoQuery()">Echo Query</button>
+        <div id="echo-output" class="demo-output"></div>
+      </section>
+
+      <section>
+        <h2>Project Status</h2>
+        <p>KnitKnot is currently in MVP stage and is in heavy development in every parts</p>
+        <ul>
+          <li><a href="CHANGELOG.md">Changelog</a></li>
+          <li><a href="ROADMAP.md">Roadmap</a></li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Get Involved</h2>
+        <p>KnitKnot is open-source and welcomes contributions!</p>
+        <ul>
+          <li><a href="https://github.com/aprksy/knitknot">View Source</a></li>
+          <li><a href="https://github.com/aprksy/knitknot/issues">Report Bugs</a></li>
+          <li><a href="CONTRIBUTING.md">Contribute</a></li>
+        </ul>
+      </section>
+    </main>
+
+    <footer>
+      <p>Made with ❤️ for curious minds. | <a href="https://github.com/aprksy/knitknot">GitHub</a> | <a href="ROADMAP.md">Roadmap</a></p>
+    </footer>
+  </div>
+
+  <script>
+    function runDemo() {
+      const output = document.getElementById('output');
+      output.textContent = '→ Alice (User), Go (Skill)\n-- 1 result(s)';
+      output.style.display = 'block';
+    }
+
+    function echoQuery() {
+      const input = document.getElementById('editable').textContent;
+      const output = document.getElementById('echo-output');
+      output.textContent = 'You wrote:\n' + input;
+      output.style.display = 'block';
+    }
+
+  </script>
+</body>
+</html>
