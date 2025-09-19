@@ -57,4 +57,4 @@ dot -Tsvg graph.dot > graph.svg
 
 ## License 
 
-[MIT](docs/LICENSE.md)  © 2025 [aprksy](https://github.com/aprksy)
+[MIT](LICENSE.md)  © 2025 [aprksy](https://github.com/aprksy)
