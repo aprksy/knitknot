@@ -1,334 +1,625 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-W1MMDDN9MF"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KnitKnot - Lightweight Property Graph Engine</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    gtag('config', 'G-W1MMDDN9MF');
-  </script>
-  <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "ccce6b375cf34374ba45ae09ba7b361d"}'></script><!-- End Cloudflare Web Analytics -->
+        :root {
+            --primary: #7c3aed;
+            --primary-dark: #6d28d9;
+            --secondary: #06b6d4;
+            --accent: #10b981;
+            --text: #1f2937;
+            --text-light: #6b7280;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --code-bg: #1e1e1e;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            --gradient: linear-gradient(135deg, var(--primary), var(--secondary));
+        }
 
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>KnitKnot – A Fluent Graph Engine</title>
-  <meta name="description" content="A lightweight, embeddable property graph engine with a fluent query DSL." />
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg);
+            overflow-x: hidden;
+        }
 
-  <!-- Favicon (optional) -->
-  <link rel="icon" href="logo/favicon.svg" sizes="any" type="image/svg+xml">
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
 
-  <style>
-    :root {
-      --bg: #ffffff;
-      --text: #1a1a1a;
-      --accent: #4a6fa5;
-      --muted: #6c757d;
-      --border: #e9ecef;
-      --pre-bg: #f8f9fa;
-      --shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
+        /* Header */
+        header {
+            text-align: center;
+            padding: 4rem 0 2rem;
+            position: relative;
+            overflow: hidden;
+        }
 
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #121212;
-        --text: #e0e0e0;
-        --accent: #6ba6ff;
-        --muted: #999999;
-        --border: #333333;
-        --pre-bg: #1e1e1e;
-        --shadow: 0 4px 16px rgba(0,0,0,0.3);
-      }
-    }
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: var(--gradient);
+            opacity: 0.03;
+            z-index: -1;
+            animation: rotate 20s linear infinite;
+        }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
 
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      line-height: 1.6;
-      transition: background 0.3s, color 0.3s;
-    }
+        .logo {
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            transition: transform 0.3s ease;
+        }
 
-    .container {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 2rem 1.5rem;
-    }
+        .logo:hover {
+            transform: scale(1.05);
+        }
 
-    header {
-      text-align: center;
-      padding: 3rem 0;
-    }
+        .logo img {
+            height: 80px;
+            width: auto;
+        }
 
-    h1 {
-      font-size: 2.8rem;
-      margin-bottom: 0.5rem;
-      color: var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-    }
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
 
-    h1 span.logo { font-size: 1.8em; }
+        .tagline {
+            font-size: 1.4rem;
+            color: var(--text-light);
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
 
-    p.tagline {
-      font-size: 1.2rem;
-      color: var(--muted);
-      max-width: 600px;
-      margin: 0 auto 2rem;
-    }
+        .badges {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
 
-    .badges {
-      margin: 1rem auto;
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--card-bg);
+            border-radius: 50px;
+            text-decoration: none;
+            color: var(--text);
+            font-weight: 500;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
 
-    .badges a, .badges img {
-      height: 24px;
-    }
+        .badge:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
 
-    main {
-      padding: 2rem 0;
-    }
+        /* Sections */
+        section {
+            background: var(--card-bg);
+            margin: 2rem 0;
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
 
-    section {
-      margin-bottom: 3.5rem;
-    }
+        section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--gradient);
+        }
 
-    h2 {
-      font-size: 1.8rem;
-      margin-bottom: 1rem;
-      border-bottom: 2px solid var(--accent);
-      display: inline-block;
-      padding-bottom: 0.3rem;
-    }
+        section:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
 
-    p, ul, ol {
-      margin-bottom: 1rem;
-    }
+        h2 {
+            font-size: 2.2rem;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+            position: relative;
+            display: inline-block;
+        }
 
-    a {
-      color: var(--accent);
-      text-decoration: none;
-    }
+        h2::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            width: 60px;
+            height: 3px;
+            background: var(--gradient);
+            border-radius: 2px;
+        }
 
-    a:hover {
-      text-decoration: underline;
-    }
+        /* Features Grid */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
 
-    pre {
-      background: var(--pre-bg);
-      padding: 1.2rem;
-      border-radius: 8px;
-      overflow-x: auto;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-      line-height: 1.4;
-    }
+        .feature-card {
+            background: var(--bg);
+            padding: 2rem;
+            border-radius: 16px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
 
-    code {
-      font-family: "SFMono-Regular", Consolas, Menlo, monospace;
-      background: var(--pre-bg);
-      padding: 0.2em 0.4em;
-      border-radius: 4px;
-      font-size: 0.95em;
-    }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--gradient);
+        }
 
-    .demo {
-      position: relative;
-      margin: 2rem 0;
-    }
+        .feature-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow);
+        }
 
-    .demo-output {
-      margin-top: 1rem;
-      padding: 1rem;
-      background: var(--pre-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-family: monospace;
-      white-space: pre;
-      display: none;
-    }
+        .feature-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
 
-    button.run {
-      background: var(--accent);
-      color: white;
-      border: none;
-      padding: 0.6rem 1.2rem;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      margin-top: 0.5rem;
-    }
+        .feature-card h3 i {
+            color: var(--secondary);
+        }
 
-    button.run:hover {
-      opacity: 0.9;
-    }
+        /* Code Blocks */
+        pre {
+            background: var(--code-bg);
+            color: #f8f8f2;
+            padding: 1.5rem;
+            border-radius: 12px;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            position: relative;
+            border: 1px solid #333;
+        }
 
-    .features {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 2rem;
-      margin-top: 2rem;
-    }
+        code {
+            font-family: 'Fira Code', 'Monaco', 'Cascadia Code', monospace;
+            font-size: 0.9rem;
+        }
 
-    .feature-card {
-      background: var(--pre-bg);
-      padding: 1.5rem;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
-      transition: transform 0.2s;
-    }
+        #editable {
+            background: var(--code-bg);
+            color: #f8f8f2;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            margin: 1.5rem 0;
+            font-family: 'Fira Code', monospace;
+            min-height: 60px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
 
-    .feature-card:hover {
-      transform: translateY(-4px);
-    }
+        #editable:focus {
+            border-color: var(--primary);
+        }
 
-    footer {
-      text-align: center;
-      padding: 3rem 0;
-      color: var(--muted);
-      font-size: 0.95rem;
-      border-top: 1px solid var(--border);
-      margin-top: 4rem;
-    }
+        /* Demo Section */
+        .demo {
+            position: relative;
+            margin: 2rem 0;
+        }
 
-    @media (max-width: 600px) {
-      h1 {
-        font-size: 2.2rem;
-      }
-      .tagline {
-        font-size: 1.1rem;
-      }
-      pre {
-        font-size: 0.9em;
-      }
-    }
-  </style>
+        .run {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .run:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .demo-output {
+            background: var(--bg);
+            border: 2px dashed var(--primary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            min-height: 80px;
+            font-family: 'Fira Code', monospace;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+        }
+
+        .demo-output.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Lists */
+        ul {
+            list-style: none;
+            margin: 1.5rem 0;
+        }
+
+        li {
+            margin: 1rem 0;
+            padding-left: 2rem;
+            position: relative;
+        }
+
+        li::before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        li strong {
+            color: var(--primary);
+        }
+
+        /* Links */
+        a {
+            color: var(--primary);
+            text-decoration: none;
+            transition: color 0.3s ease;
+            position: relative;
+        }
+
+        a::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary);
+            transition: width 0.3s ease;
+        }
+
+        a:hover::after {
+            width: 100%;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 0;
+            margin-top: 4rem;
+            color: var(--text-light);
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        /* Graph Visualization Demo */
+        .graph-demo {
+            width: 100%;
+            height: 300px;
+            background: var(--bg);
+            border-radius: 12px;
+            margin: 2rem 0;
+            position: relative;
+            overflow: hidden;
+            border: 2px dashed var(--primary);
+        }
+
+        .node {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .node:hover {
+            transform: scale(1.1);
+        }
+
+        .node:nth-child(2) {
+            background: var(--secondary);
+            top: 50px;
+            left: 200px;
+            animation-delay: 0.5s;
+        }
+
+        .node:nth-child(3) {
+            background: var(--accent);
+            top: 150px;
+            left: 100px;
+            animation-delay: 1s;
+        }
+
+        .connection {
+            position: absolute;
+            background: var(--text-light);
+            transform-origin: 0 0;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+            
+            .tagline {
+                font-size: 1.2rem;
+            }
+            
+            section {
+                padding: 2rem;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-        <h1><span class="logo"><img src="logo/logo1.png" alt="knitknot-logo" /></span></h1>
-        <p class="tagline">A lightweight, embeddable property graph engine with a fluent query DSL.</p>
+    <div class="container">
+        <header>
+            <h1><span class="logo"><img src="logo/logo1.png" alt="knitknot-logo" /></span></h1>
+            <p class="tagline">A lightweight, embeddable property graph engine with a fluent query DSL.</p>
 
-        <div class="badges">
-            <a href="https://github.com/aprksy/knitknot"><img src="https://img.shields.io/badge/coverage-86%25-brightgreen" alt="Coverage"></a>
-        </div>
-    </header>
+            <div class="badges">
+                <a href="https://github.com/aprksy/knitknot" class="badge">
+                    <i class="fab fa-github"></i>
+                    <span>GitHub</span>
+                </a>
+                <a href="https://github.com/aprksy/knitknot" class="badge">
+                    <img src="https://img.shields.io/badge/coverage-86%25-brightgreen" alt="Coverage">
+                </a>
+                <span class="badge">
+                    <i class="fas fa-code"></i>
+                    <span>Go</span>
+                </span>
+            </div>
+        </header>
 
-    <main>
-      <section>
-        <h2>Why KnitKnot?</h2>
-        <p>Most graph databases are heavy and complex. KnitKnot is different:</p>
-        <ul>
-          <li><strong>CLI-first</strong>: Query interactively like SQLite</li>
-          <li><strong>Fluent DSL</strong>: Write expressive queries: <code>Find('User').Has('skill', 'Go')</code></li>
-          <li><strong>Embeddable</strong>: Use as a Go library or standalone tool</li>
-          <li><strong>File-based</strong>: No server needed — data saved to <code>.gob</code></li>
-        </ul>
-      </section>
+        <main>
+            <section>
+                <h2>Why KnitKnot?</h2>
+                <p>Most graph databases are heavy and complex. KnitKnot is different:</p>
+                <ul>
+                    <li><strong>CLI-first</strong>: Query interactively like SQLite</li>
+                    <li><strong>Fluent DSL</strong>: Write expressive queries: <code>Find('User').Has('skill', 'Go')</code></li>
+                    <li><strong>Embeddable</strong>: Use as a Go library or standalone tool</li>
+                    <li><strong>File-based</strong>: No server needed — data saved to <code>.gob</code></li>
+                </ul>
+            </section>
 
-      <section>
-        <h2>Quick Start</h2>
-        <p>Install via Go:</p>
-        <pre><code>go install github.com/aprksy/knitknot@latest</code></pre>
+            <section>
+                <h2>Quick Start</h2>
+                <p>Install via Go:</p>
+                <pre><code>go install github.com/aprksy/knitknot@latest</code></pre>
 
-        <p>Start the REPL:</p>
-        <pre><code>knitknot repl</code></pre>
+                <p>Start the REPL:</p>
+                <pre><code>knitknot repl</code></pre>
 
-        <p>Run your first query:</p>
-        <div class="demo">
-          <pre><code>knitknot> Find('User').Has('has_skill', 'Go')</code></pre>
-          <button class="run" onclick="runDemo()">Run Query</button>
-          <div id="output" class="demo-output"></div>
-        </div>
-      </section>
+                <p>Run your first query:</p>
+                <div class="demo">
+                    <pre><code>knitknot> Find('User').Has('has_skill', 'Go')</code></pre>
+                    <button class="run" onclick="runDemo()">
+                        <i class="fas fa-play"></i>
+                        Run Query
+                    </button>
+                    <div id="output" class="demo-output"></div>
+                </div>
+            </section>
 
-      <section>
-        <h2>Features</h2>
-        <div class="features">
-          <div class="feature-card">
-            <h3>REPL Shell</h3>
-            <p>Interactive exploration with history, syntax highlighting, and <code>EXPLAIN</code>.</p>
-          </div>
-          <div class="feature-card">
-            <h3>Custom Verbs</h3>
-            <p>Define your own semantics: <code>DEFINE teaches TO Course VIA code</code></p>
-          </div>
-          <div class="feature-card">
-            <h3>Persistence</h3>
-            <p>Save/load full state including verbs and subgraphs.</p>
-          </div>
-          <div class="feature-card">
-            <h3>Visualize</h3>
-            <p>Export to DOT format and render with Graphviz.</p>
-          </div>
-        </div>
-      </section>
+            <section>
+                <h2>Features</h2>
+                <div class="features">
+                    <div class="feature-card">
+                        <h3><i class="fas fa-terminal"></i> REPL Shell</h3>
+                        <p>Interactive exploration with history, syntax highlighting, and <code>EXPLAIN</code>.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3><i class="fas fa-magic"></i> Custom Verbs</h3>
+                        <p>Define your own semantics: <code>DEFINE teaches TO Course VIA code</code></p>
+                    </div>
+                    <div class="feature-card">
+                        <h3><i class="fas fa-save"></i> Persistence</h3>
+                        <p>Save/load full state including verbs and subgraphs.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3><i class="fas fa-project-diagram"></i> Visualize</h3>
+                        <p>Export to DOT format and render with Graphviz.</p>
+                    </div>
+                </div>
+            </section>
 
-      <section>
-        <h2>Syntax Demo</h2>
-        <p>Try editing the query below:</p>
-        <pre><code id="editable" contenteditable="true">Find('User').Where('n.age', '>', 30).Limit(5)</code></pre>
-        <button class="run" onclick="echoQuery()">Echo Query</button>
-        <div id="echo-output" class="demo-output"></div>
-      </section>
+            <section>
+                <h2>Interactive Syntax Demo</h2>
+                <p>Try editing the query below and see it in action:</p>
+                <div id="editable" contenteditable="true">Find('User').Where('n.age', '>', 30).Limit(5)</div>
+                <button class="run" onclick="echoQuery()">
+                    <i class="fas fa-code"></i>
+                    Execute Query
+                </button>
+                <div id="echo-output" class="demo-output"></div>
+            </section>
 
-      <section>
-        <h2>Project Status</h2>
-        <p>KnitKnot is currently in MVP stage and is in heavy development in every parts</p>
-        <ul>
-          <li><a href="https://github.com/aprksy/knitknot/blob/main/docs/CHANGELOG.md">Changelog</a></li>
-          <li><a href="https://github.com/aprksy/knitknot/blob/main/docs/ROADMAP.md">Roadmap</a></li>
-        </ul>
-      </section>
+            <section>
+                <h2>Project Status</h2>
+                <p>KnitKnot is currently in MVP stage and is in heavy development in every part</p>
+                <div class="progress-bar" style="background: #e5e7eb; border-radius: 10px; height: 10px; margin: 1rem 0;">
+                    <div style="background: var(--accent); height: 100%; border-radius: 10px; width: 65%;"></div>
+                </div>
+                <ul>
+                    <li><a href="https://github.com/aprksy/knitknot/blob/main/docs/CHANGELOG.md">Changelog</a></li>
+                    <li><a href="https://github.com/aprksy/knitknot/blob/main/docs/ROADMAP.md">Roadmap</a></li>
+                </ul>
+            </section>
 
-      <section>
-        <h2>Get Involved</h2>
-        <p>KnitKnot is open-source and welcomes contributions!</p>
-        <ul>
-          <li><a href="https://github.com/aprksy/knitknot">View Source</a></li>
-          <li><a href="https://github.com/aprksy/knitknot/issues">Report Bugs</a></li>
-          <li><a href="https://github.com/aprksy/knitknot/blob/main/LICENSE.md">MIT License</a></li>
-          <li><a href="https://github.com/aprksy/knitknot/blob/main/docs/CONTRIBUTING.md">Contribute</a></li>
-        </ul>
-      </section>
-    </main>
+            <section>
+                <h2>Get Involved</h2>
+                <p>KnitKnot is open-source and welcomes contributions!</p>
+                <div class="features">
+                    <div class="feature-card">
+                        <h3><i class="fas fa-eye"></i> View Source</h3>
+                        <p>Explore the codebase and understand how it works.</p>
+                        <a href="https://github.com/aprksy/knitknot">Browse Code →</a>
+                    </div>
+                    <div class="feature-card">
+                        <h3><i class="fas fa-bug"></i> Report Issues</h3>
+                        <p>Found a bug? Let us know!</p>
+                        <a href="https://github.com/aprksy/knitknot/issues">Report Bug →</a>
+                    </div>
+                    <div class="feature-card">
+                        <h3><i class="fas fa-hands-helping"></i> Contribute</h3>
+                        <p>Help make KnitKnot better for everyone.</p>
+                        <a href="https://github.com/aprksy/knitknot/blob/main/docs/CONTRIBUTING.md">Contribute →</a>
+                    </div>
+                </div>
+            </section>
+        </main>
 
-    <footer>
-      <p>Made with ❤️ for curious minds. | <a href="https://github.com/aprksy/knitknot">GitHub</a> | <a href="https://github.com/aprksy/knitknot/blob/main/docs/ROADMAP.md">Roadmap</a></p>
-    </footer>
-  </div>
+        <footer>
+            <p>Made with ❤️ for curious minds. | 
+                <a href="https://github.com/aprksy/knitknot">GitHub</a> | 
+                <a href="https://github.com/aprksy/knitknot/blob/main/docs/ROADMAP.md">Roadmap</a>
+            </p>
+        </footer>
+    </div>
 
-  <script>
-    function runDemo() {
-      const output = document.getElementById('output');
-      output.textContent = '→ Alice (User), Go (Skill)\n-- 1 result(s)';
-      output.style.display = 'block';
-    }
+    <script>
+        function runDemo() {
+            const output = document.getElementById('output');
+            output.innerHTML = `
+                → Alice (User), Go (Skill)</br>
+                -- 1 result(s)
+            `;
+            output.classList.add('show');
+        }
 
-    function echoQuery() {
-      const input = document.getElementById('editable').textContent;
-      const output = document.getElementById('echo-output');
-      output.textContent = 'You wrote:\n' + input;
-      output.style.display = 'block';
-    }
+        function echoQuery() {
+            const editable = document.getElementById('editable');
+            const output = document.getElementById('echo-output');
+            const query = editable.textContent;
+            
+            output.innerHTML = `
+                You wrote:</br>
+                Find('User').Where('n.age', '>', 30).Limit(5)
+            `;
+            output.classList.add('show');
+        }
 
-  </script>
+        // Add typing effect to editable code
+        document.addEventListener('DOMContentLoaded', function() {
+            const editable = document.getElementById('editable');
+            const originalText = editable.textContent;
+            
+            editable.addEventListener('focus', function() {
+                if (this.textContent === originalText) {
+                    this.textContent = '';
+                }
+            });
+            
+            editable.addEventListener('blur', function() {
+                if (this.textContent === '') {
+                    this.textContent = originalText;
+                }
+            });
+        });
+
+        // Add scroll animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver(function(entries) {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        // Animate sections on load
+        document.querySelectorAll('section').forEach(section => {
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(20px)';
+            section.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(section);
+        });
+    </script>
 </body>
 </html>
