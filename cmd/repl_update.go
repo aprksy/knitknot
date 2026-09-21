@@ -62,7 +62,9 @@ func execUpdateNode(engine *graph.GraphEngine, input string, out io.Writer) erro
 		return fmt.Errorf("storage not mutable")
 	}
 
-	storage.UpdateNode(id, newProps)
+	if err := storage.UpdateNode(id, newProps); err != nil { // fix: H2
+		return err // fix: H2
+	} // fix: H2
 	fmt.Fprintf(out, "-- Updated node %s\n", id)
 	return nil
 }
@@ -80,36 +82,43 @@ func execUpdateEdge(engine *graph.GraphEngine, input string, out io.Writer) erro
 	toID := strings.TrimSpace(input[arrowEnd+3:])
 
 	rel := strings.TrimSpace(middle)
-	rest := ""
+	parts := strings.SplitN(toID, " ", 2)   // fix: H2
+	realToID := strings.TrimSpace(parts[0]) // fix: H2
+	propsStr := ""                          // fix: H2
+	if len(parts) == 2 {                    // fix: H2
+		propsStr = strings.TrimSpace(parts[1]) // fix: H2
+	} // fix: H2
 
 	// If there are props after the arrow
-	if space := strings.Index(rest, " "); space != -1 {
+	if propsStr != "" { // fix: H2
 		// Extract props
-		propsStr := strings.TrimSpace(rest[space+1:])
-		if propsStr != "" {
-			props := parseProps(propsStr)
+		props := parseProps(propsStr)
 
-			edgeID := fmt.Sprintf("%s->%s@%s", fromID, toID, rel)
-			s, ok := engine.Storage().(*inmem.Storage)
-			if !ok {
-				return fmt.Errorf("storage not mutable")
-			}
-
-			edge, exists := engine.GetEdge(edgeID)
-			if !exists {
-				return fmt.Errorf("edge not found")
-			}
-
-			// Update props
-			for k, v := range props {
-				edge.Props[k] = v
-			}
-
-			s.UpdateEdge(edgeID, edge.Props)
-
-			fmt.Fprintf(out, "-- Updated edge %s --%s--> %s\n", fromID, rel, toID)
-			return nil
+		edgeID := fmt.Sprintf("%s->%s@%s", fromID, realToID, rel)
+		s, ok := engine.Storage().(*inmem.Storage)
+		if !ok {
+			return fmt.Errorf("storage not mutable")
 		}
+
+		edge, exists := engine.GetEdge(edgeID)
+		if !exists {
+			return fmt.Errorf("edge not found")
+		}
+
+		// Update props
+		if edge.Props == nil {
+			edge.Props = map[string]any{}
+		}
+		for k, v := range props {
+			edge.Props[k] = v
+		}
+
+		if err := s.UpdateEdge(edgeID, edge.Props); err != nil { // fix: H2
+			return err // fix: H2
+		}
+
+		fmt.Fprintf(out, "-- Updated edge %s --%s--> %s\n", fromID, rel, realToID)
+		return nil
 	}
 
 	return fmt.Errorf("no properties to update")

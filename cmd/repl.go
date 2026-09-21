@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,6 +19,8 @@ var replCmd = &cobra.Command{
 	Long:  `Interactive mode to run and explain queries.`,
 	RunE:  runRepl,
 }
+
+var errExitRepl = errors.New("exit") // fix: H1
 
 func init() {
 	replCmd.Flags().StringVar(&globalFlags.subgraph, "subgraph", "", "Run query within a subgraph context")
@@ -77,6 +80,10 @@ func runRepl(cmd *cobra.Command, args []string) error {
 		}
 
 		if err := handleLine(ctx, line, engine, rl.Stdout()); err != nil {
+			if errors.Is(err, errExitRepl) { // fix: H1
+				fmt.Fprintln(rl.Stdout(), "Goodbye!") // fix: H1
+				break                                 // fix: H1
+			}
 			fmt.Fprintf(rl.Stderr(), "Error: %v\n", err)
 		}
 	}
@@ -98,8 +105,7 @@ func handleLine(ctx context.Context, input string, engine *graph.GraphEngine, ou
 
 	switch {
 	case lower == "exit", lower == "quit":
-		fmt.Fprintln(out, "Goodbye!")
-		os.Exit(0)
+		return errExitRepl // fix: H1
 
 	case lower == "help":
 		printHelp(out)

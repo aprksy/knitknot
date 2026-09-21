@@ -31,7 +31,12 @@ func (qe *DefaultQueryEngine) Execute(
 	}
 
 	first := plan.Nodes[0]
-	candidates := filterNodesByLabel(storage.GetAllNodes(), first.Label)
+	var candidates []*types.Node
+	if plan.Subgraph != "" { // fix: H3
+		candidates = filterNodesByLabel(storage.GetNodesIn(plan.Subgraph), first.Label) // fix: H3
+	} else { // fix: H3
+		candidates = filterNodesByLabel(storage.GetAllNodes(), first.Label)
+	}
 
 	for _, node := range candidates {
 		row := map[string]*types.Node{
@@ -47,7 +52,7 @@ func (qe *DefaultQueryEngine) Execute(
 	}
 
 	// Apply final filters (some may involve multiple vars)
-	filtered := qe.applyAllFilters(results, plan.Filters)
+	filtered := qe.applyAllFilters(results, first.Var, plan.Filters)
 
 	// Apply limit
 	if plan.LimitVal != nil && len(filtered) > *plan.LimitVal {
@@ -57,14 +62,16 @@ func (qe *DefaultQueryEngine) Execute(
 	return NewResultSet(filtered), nil
 }
 
-func (qe *DefaultQueryEngine) matchFilters(row map[string]*types.Node, filters []query.Filter) bool {
+func (qe *DefaultQueryEngine) matchFilters(row map[string]*types.Node, primaryVar string, filters []query.Filter) bool {
 	for _, f := range filters {
 		// Extract var name: e.g., "n.age" → var="n", prop="age"
+		var varName, prop string
 		parts := strings.SplitN(f.Field, ".", 2)
 		if len(parts) != 2 {
-			continue
+			varName, prop = primaryVar, f.Field
+		} else {
+			varName, prop = parts[0], parts[1]
 		}
-		varName, prop := parts[0], parts[1]
 
 		node, ok := row[varName]
 		if !ok {
@@ -83,10 +90,10 @@ func (qe *DefaultQueryEngine) matchFilters(row map[string]*types.Node, filters [
 	return true
 }
 
-func (qe *DefaultQueryEngine) applyAllFilters(rows []map[string]*types.Node, filters []query.Filter) []map[string]*types.Node {
+func (qe *DefaultQueryEngine) applyAllFilters(rows []map[string]*types.Node, primaryVar string, filters []query.Filter) []map[string]*types.Node {
 	var result []map[string]*types.Node
 	for _, row := range rows {
-		if qe.matchFilters(row, filters) {
+		if qe.matchFilters(row, primaryVar, filters) {
 			result = append(result, row)
 		}
 	}
@@ -191,9 +198,18 @@ func filterNodesByLabel(nodes []*types.Node, label string) []*types.Node {
 
 func compare(a any, op string, b any) bool {
 	switch op {
-	case "=":
-		return a == b
-	case "!=":
+	case "=", "!=":
+		if af, ok := toFloat(a); ok {
+			if bf, ok := toFloat(b); ok {
+				if op == "=" {
+					return af == bf
+				}
+				return af != bf
+			}
+		}
+		if op == "=" {
+			return a == b
+		}
 		return a != b
 	case ">":
 		if ai, ok := toFloat(a); ok {

@@ -41,8 +41,12 @@ func (l *Lexer) NextToken() Token {
 	case ',':
 		tok = Token{Type: Comma, Literal: ",", PosX: position}
 	case '\'':
-		str := l.readString()
-		tok = Token{Type: String, Literal: str, PosX: position}
+		str, terminated := l.readString()
+		if !terminated {
+			tok = Token{Type: Illegal, Literal: str, PosX: position}
+		} else {
+			tok = Token{Type: String, Literal: str, PosX: position}
+		}
 		return tok // ← Return early! Already advanced in readString
 	case 0:
 		tok = Token{Type: EOF, Literal: ""}
@@ -79,7 +83,7 @@ func (l *Lexer) readIdentifier() string {
 	return l.input[pos:l.position]
 }
 
-func (l *Lexer) readString() string {
+func (l *Lexer) readString() (string, bool) {
 	pos := l.position + 1 // start after opening '
 	l.readChar()          // consume opening '
 
@@ -94,9 +98,10 @@ func (l *Lexer) readString() string {
 	// If we stopped at ', consume it
 	if l.ch == '\'' {
 		l.readChar() // now points after closing '
+		return s, true
 	}
 
-	return s
+	return s, false
 }
 
 func (l *Lexer) readNumber() string {

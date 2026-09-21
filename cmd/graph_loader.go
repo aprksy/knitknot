@@ -45,7 +45,11 @@ func SaveGraph(engine *graph.GraphEngine, filename string) error {
 		return fmt.Errorf("save failed: %w", err)
 	}
 
-	info, _ := os.Stat(filename)
+	info, err := os.Stat(filename)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "-- Saved to %s\n", filename)
+		return nil
+	}
 	fmt.Fprintf(os.Stderr, "-- Saved to %s (%.1f KB)\n",
 		filename,
 		float64(info.Size())/1024)

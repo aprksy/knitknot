@@ -12,4 +12,4 @@ type SavedGraph struct {
 	Verbs   map[string]types.Verb  `json:"verbs"`
 }
 
-const CurrentVersion = "knitknot/v0.1"
+const CurrentVersion = "knitknot/v0.2" // fix: H6 (schema change: Subgraphs field)

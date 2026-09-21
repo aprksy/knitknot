@@ -38,7 +38,7 @@ func init() {
 	RootCmd.AddCommand(exportCmd)
 }
 
-func runExport(cmd *cobra.Command, args []string) error {
+func runExport(cmd *cobra.Command, args []string) (err error) {
 	format := ExportFormat(exportFlags.format)
 	if format != FormatDOT && format != FormatSVG && format != FormatJSON {
 		return fmt.Errorf("unsupported format: %s", format)
@@ -62,12 +62,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		defer func() {
-			if closeErr := file.Close(); closeErr != nil {
-				if err == nil {
-					err = closeErr
-				} else {
-					fmt.Printf("Error closing file: %v (original error: %v)\n", closeErr, err)
-				}
+			if cerr := file.Close(); cerr != nil && err == nil {
+				err = cerr
 			}
 		}()
 		writer = file
@@ -91,8 +87,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 		return exportToDOT(nodes, edges, writer)
 	case FormatSVG:
 		return exportToSVG(nodes, edges, writer)
-		// case FormatJSON:
-		// 	return exportToJSON(engine, writer)
+	case FormatJSON:
+		return fmt.Errorf("json export not implemented yet")
 	}
 
 	return nil

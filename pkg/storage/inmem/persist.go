@@ -11,8 +11,12 @@ import (
 	"github.com/aprksy/knitknot/pkg/storage/file"
 )
 
+func init() {
+	gob.Register(map[string]*types.Subgraph{}) // fix: H6
+}
+
 // Save writes the current graph state to disk
-func (s *Storage) Save(filename string, engine *graph.GraphEngine) error {
+func (s *Storage) Save(filename string, engine *graph.GraphEngine) (err error) {
 	// Ensure dir exists
 	_ = os.MkdirAll(filepath.Dir(filename), 0755)
 
@@ -21,12 +25,8 @@ func (s *Storage) Save(filename string, engine *graph.GraphEngine) error {
 		return err
 	}
 	defer func() {
-		if closeErr := f.Close(); closeErr != nil {
-			if err == nil {
-				err = closeErr
-			} else {
-				fmt.Printf("Error closing file: %v (original error: %v)\n", closeErr, err)
-			}
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
 		}
 	}()
 
@@ -55,25 +55,21 @@ func (s *Storage) Save(filename string, engine *graph.GraphEngine) error {
 }
 
 // Load populates the storage from a file
-func (s *Storage) Load(filename string, engine *graph.GraphEngine) error {
+func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if closeErr := f.Close(); closeErr != nil {
-			if err == nil {
-				err = closeErr
-			} else {
-				fmt.Printf("Error closing file: %v (original error: %v)\n", closeErr, err)
-			}
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
 		}
 	}()
 
 	var saved file.SavedGraph
 	decoder := gob.NewDecoder(f)
 	if err := decoder.Decode(&saved); err != nil {
-		return err
+		return fmt.Errorf("failed to decode %s (expected version %s): %w", filename, file.CurrentVersion, err) // fix: H6
 	}
 
 	if saved.Version != file.CurrentVersion {

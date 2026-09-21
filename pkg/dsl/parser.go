@@ -33,7 +33,10 @@ func (p *Parser) Parse() (*Query, error) {
 		if p.curToken.Type == Ident {
 			method := p.parseMethodCall()
 			if method == nil {
-				return nil, fmt.Errorf("failed to parse method at pos %d. %s", p.l.position-1, p.errors[0])
+				if len(p.errors) > 0 {
+					return nil, fmt.Errorf("failed to parse method at pos %d. %s", p.l.position-1, p.errors[0])
+				}
+				return nil, fmt.Errorf("failed to parse method at pos %d. syntax error", p.l.position-1)
 			}
 			query.Methods = append(query.Methods, method)
 		} else {
@@ -48,7 +51,7 @@ func (p *Parser) Parse() (*Query, error) {
 	}
 
 	if p.curToken.Type == EOF {
-		return nil, fmt.Errorf("expected method name, got %v at pos %d", p.curToken.Type, p.curToken.PosX)
+		return nil, fmt.Errorf("unexpected end of query at pos %d", p.curToken.PosX)
 	}
 
 	return query, nil

@@ -23,7 +23,14 @@ func execSave(engine *graph.GraphEngine, filename string, out io.Writer) error {
 		return fmt.Errorf("save failed: %w", err)
 	}
 
-	info, _ := os.Stat(filename)
+	info, err := os.Stat(filename)
+	if err != nil {
+		fmt.Fprintf(out, "-- Saved %d nodes, %d edges to %s\n",
+			len(storage.GetAllNodes()),
+			len(storage.GetAllEdges()),
+			filename)
+		return nil
+	}
 	fmt.Fprintf(out, "-- Saved %d nodes, %d edges to %s (%.1f KB)\n",
 		len(storage.GetAllNodes()),
 		len(storage.GetAllEdges()),

@@ -13,14 +13,22 @@ import (
 // parseProps converts "name=Alice age=35" to map[string]any
 func parseProps(input string) map[string]any {
 	props := make(map[string]any)
-	for _, kv := range strings.Fields(input) {
-		parts := strings.SplitN(kv, "=", 2)
+	var lastKey string
+	for _, tok := range strings.Fields(input) {
+		parts := strings.SplitN(tok, "=", 2)
 		if len(parts) == 2 {
+			lastKey = parts[0]
 			// Try int
 			if v, err := strconv.Atoi(parts[1]); err == nil {
-				props[parts[0]] = v
+				props[lastKey] = v
 			} else {
-				props[parts[0]] = parts[1]
+				props[lastKey] = parts[1]
+			}
+		} else if lastKey != "" {
+			if s, ok := props[lastKey].(string); ok {
+				props[lastKey] = s + " " + tok
+			} else {
+				props[lastKey] = fmt.Sprintf("%v %s", props[lastKey], tok)
 			}
 		}
 	}

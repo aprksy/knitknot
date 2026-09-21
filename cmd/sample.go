@@ -21,6 +21,9 @@ func init() {
 }
 
 func runGenerateSample(cmd *cobra.Command, args []string) error {
+	if globalFlags.file == "" {
+		return fmt.Errorf("usage: knitknot generate-sample -f <file.gob>")
+	}
 	storage := inmem.New()
 	engine := graph.NewGraphEngine(storage)
 

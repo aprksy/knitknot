@@ -16,7 +16,6 @@ var defineRegex = regexp.MustCompile(`(?i)^define\s+(\w+)\s+to\s+(\w+)\s+via\s+(
 func execDefine(engine *graph.GraphEngine, input string, out io.Writer) error {
 	input = strings.TrimSpace(input)
 	matches := defineRegex.FindStringSubmatch(input)
-	fmt.Printf("%s; matches: %v\n", input, matches)
 	if len(matches) != 4 {
 		return fmt.Errorf("invalid syntax. Use: DEFINE <verb> TO <Label> VIA <property>")
 	}

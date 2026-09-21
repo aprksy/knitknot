@@ -4,8 +4,8 @@ package inmem
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"sync"
+	"sync/atomic"
 
 	"github.com/aprksy/knitknot/pkg/ports/storage"
 	"github.com/aprksy/knitknot/pkg/ports/types"
@@ -46,6 +46,8 @@ func (s *Storage) AddNode(label string, props map[string]any) (string, error) {
 }
 
 func (s *Storage) AddToSubgraph(n *types.Node, sgName, sgDesc string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	subgraph := &types.Subgraph{
 		Name:        sgName,
 		Description: sgDesc,
@@ -54,6 +56,8 @@ func (s *Storage) AddToSubgraph(n *types.Node, sgName, sgDesc string) {
 }
 
 func (s *Storage) RemoveFromSubgraph(n *types.Node, sgName string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(n.Subgraphs, sgName)
 }
 
@@ -151,7 +155,7 @@ func (s *Storage) UpdateEdge(id string, props map[string]any) error {
 
 	edge, ok := s.edges[id]
 	if !ok {
-		return fmt.Errorf("node not found")
+		return fmt.Errorf("edge not found")
 	}
 
 	edge.Props = copyMap(props)
@@ -204,8 +208,12 @@ func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge {
 				result = append(result, e)
 			} else {
 				// Auto-inherit
-				cp := *e
-				cp.Subgraphs[subgraph] = sgInstance
+				cp := *e                                                            // fix: H4
+				cp.Subgraphs = make(map[string]*types.Subgraph, len(e.Subgraphs)+1) // fix: H4
+				for k, v := range e.Subgraphs {                                     // fix: H4
+					cp.Subgraphs[k] = v // fix: H4
+				} // fix: H4
+				cp.Subgraphs[subgraph] = sgInstance // fix: H4
 				result = append(result, &cp)
 			}
 		}
@@ -220,7 +228,11 @@ func (s *Storage) DeleteNode(id string) error {
 		return fmt.Errorf("node not found")
 	}
 	delete(s.nodes, id)
-	// Optionally remove edges too
+	for eid, e := range s.edges {
+		if e.From == id || e.To == id {
+			delete(s.edges, eid)
+		}
+	}
 	return nil
 }
 
@@ -247,7 +259,8 @@ func copyMap(m map[string]any) map[string]any {
 	return cp
 }
 
+var idSeq atomic.Uint64
+
 func generateID() string {
-	// Reuse your ID generator
-	return fmt.Sprintf("n%d", rand.Intn(1000000)) // simplify for now
+	return fmt.Sprintf("n%d", idSeq.Add(1))
 }

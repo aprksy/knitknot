@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/spf13/cobra"
@@ -35,7 +34,7 @@ func init() {
 
 func runQuery(cmd *cobra.Command, args []string) error {
 	dslText := args[0]
-	fmt.Fprintf(os.Stderr, "INPUT: %q\n", dslText)
+	// fix: H1 debug line removed (was fmt.Fprintf(os.Stderr, "INPUT: ..."))
 
 	// Parse first
 	parser := dsl.NewParser(dslText)
@@ -118,15 +117,38 @@ func printExplain(queryStr string, ast *dsl.Query) {
 	for i, method := range ast.Methods {
 		switch method.Name.Value {
 		case "Find":
-			arg := method.Arguments[0].(*dsl.StringLiteral)
-			fmt.Printf("    %d. Match nodes with label '%s'\n", i+1, arg.Value)
+			if len(method.Arguments) < 1 { // fix: H5
+				fmt.Printf("    %d. Find (unrecognized arg)\n", i+1) // fix: H5
+				continue                                             // fix: H5
+			} // fix: H5
+			if arg, ok := method.Arguments[0].(*dsl.StringLiteral); ok { // fix: H5
+				fmt.Printf("    %d. Match nodes with label '%s'\n", i+1, arg.Value)
+			} else { // fix: H5
+				fmt.Printf("    %d. Match nodes with label '???'\n", i+1) // fix: H5
+			}
 		case "Has":
-			rel := method.Arguments[0].(*dsl.StringLiteral)
-			val := method.Arguments[1].(*dsl.StringLiteral)
+			if len(method.Arguments) < 2 { // fix: H5
+				fmt.Printf("    %d. Has (unrecognized arg)\n", i+1) // fix: H5
+				continue                                            // fix: H5
+			} // fix: H5
+			rel, ok1 := method.Arguments[0].(*dsl.StringLiteral) // fix: H5
+			val, ok2 := method.Arguments[1].(*dsl.StringLiteral) // fix: H5
+			if !ok1 || !ok2 {                                    // fix: H5
+				fmt.Printf("    %d. Has (unrecognized arg)\n", i+1) // fix: H5
+				continue                                            // fix: H5
+			} // fix: H5
 			fmt.Printf("    %d. Follow '%s' edges to nodes with value '%s'\n", i+1, rel.Value, val.Value)
 		case "Where", "WhereEdge":
-			field := method.Arguments[0].(*dsl.StringLiteral)
-			op := method.Arguments[1].(*dsl.StringLiteral)
+			if len(method.Arguments) < 3 { // fix: H5
+				fmt.Printf("    %d. %s (unrecognized arg)\n", i+1, method.Name.Value) // fix: H5
+				continue                                                              // fix: H5
+			} // fix: H5
+			field, ok1 := method.Arguments[0].(*dsl.StringLiteral) // fix: H5
+			op, ok2 := method.Arguments[1].(*dsl.StringLiteral)    // fix: H5
+			if !ok1 || !ok2 {                                      // fix: H5
+				fmt.Printf("    %d. %s (unrecognized arg)\n", i+1, method.Name.Value) // fix: H5
+				continue                                                              // fix: H5
+			} // fix: H5
 			value := method.Arguments[2]
 			var valStr string
 			switch v := value.(type) {
@@ -139,8 +161,15 @@ func printExplain(queryStr string, ast *dsl.Query) {
 			}
 			fmt.Printf("    %d. Filter where %s %s %s\n", i+1, field.Value, op.Value, valStr)
 		case "Limit":
-			n := method.Arguments[0].(*dsl.NumberLiteral)
-			fmt.Printf("    %d. Limit result to %d items\n", i+1, n.Value)
+			if len(method.Arguments) < 1 { // fix: H5
+				fmt.Printf("    %d. Limit (unrecognized arg)\n", i+1) // fix: H5
+				continue                                              // fix: H5
+			} // fix: H5
+			if n, ok := method.Arguments[0].(*dsl.NumberLiteral); ok { // fix: H5
+				fmt.Printf("    %d. Limit result to %d items\n", i+1, n.Value)
+			} else { // fix: H5
+				fmt.Printf("    %d. Limit (unrecognized arg)\n", i+1) // fix: H5
+			}
 		default:
 			fmt.Printf("    %d. Unknown operation: %s\n", i+1, method.Name.Value)
 		}
@@ -225,6 +254,16 @@ func ApplyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 				builder = builder.Limit(num.Value)
 			} else {
 				return nil, fmt.Errorf("limit requires number")
+			}
+
+		case "In": // fix: H3
+			if len(method.Arguments) != 1 {
+				return nil, fmt.Errorf("in takes 1 arg")
+			}
+			if str, ok := method.Arguments[0].(*dsl.StringLiteral); ok && builder != nil {
+				builder = builder.In(str.Value) // fix: H3
+			} else {
+				return nil, fmt.Errorf("in requires string")
 			}
 
 		default:
