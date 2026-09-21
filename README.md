@@ -48,6 +48,7 @@ dot -Tsvg graph.dot > graph.svg
 - [DSL Syntax Guide](docs/dsl.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Contribute](docs/CONTRIBUTING.md)
+- [Current Status](STATUS.md)
 
 ## Changelog
 - [Changelog](docs/CHANGELOG.md)
