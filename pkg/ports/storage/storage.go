@@ -9,6 +9,7 @@ type StorageEngine interface {
 	GetNode(id string) (*types.Node, bool)
 	GetEdge(id string) (*types.Edge, bool)
 	GetAllNodes() []*types.Node
+	GetNodesByLabel(label string) []*types.Node // perf: index
 	GetAllEdges() []*types.Edge
 	GetEdgesFrom(from string) []*types.Edge
 	GetEdgesTo(to string) []*types.Edge

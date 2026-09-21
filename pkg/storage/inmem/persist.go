@@ -82,10 +82,15 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 	// Clear existing
 	s.nodes = make(map[string]*types.Node)
 	s.edges = make(map[string]*types.Edge)
+	s.nodesByLabel = make(map[string]map[string]*types.Node) // perf: index
 
 	// Restore
 	for id, n := range saved.Nodes {
 		s.nodes[id] = n
+		if s.nodesByLabel[n.Label] == nil { // perf: index
+			s.nodesByLabel[n.Label] = make(map[string]*types.Node) // perf: index
+		} // perf: index
+		s.nodesByLabel[n.Label][id] = n // perf: index
 	}
 	for id, e := range saved.Edges {
 		s.edges[id] = e

@@ -31,11 +31,11 @@ func (qe *DefaultQueryEngine) Execute(
 	}
 
 	first := plan.Nodes[0]
-	var candidates []*types.Node
-	if plan.Subgraph != "" { // fix: H3
+	var candidates []*types.Node // perf: index
+	if plan.Subgraph != "" {     // fix: H3
 		candidates = filterNodesByLabel(storage.GetNodesIn(plan.Subgraph), first.Label) // fix: H3
 	} else { // fix: H3
-		candidates = filterNodesByLabel(storage.GetAllNodes(), first.Label)
+		candidates = storage.GetNodesByLabel(first.Label) // perf: index
 	}
 
 	for _, node := range candidates {

@@ -14,15 +14,17 @@ import (
 var _ storage.StorageEngine = (*Storage)(nil)
 
 type Storage struct {
-	mu    sync.RWMutex
-	nodes map[string]*types.Node
-	edges map[string]*types.Edge
+	mu           sync.RWMutex
+	nodes        map[string]*types.Node
+	edges        map[string]*types.Edge
+	nodesByLabel map[string]map[string]*types.Node // label -> id -> *Node // perf: index
 }
 
 func New() *Storage {
 	return &Storage{
-		nodes: make(map[string]*types.Node),
-		edges: make(map[string]*types.Edge),
+		nodes:        make(map[string]*types.Node),
+		edges:        make(map[string]*types.Edge),
+		nodesByLabel: make(map[string]map[string]*types.Node), // perf: index
 	}
 }
 
@@ -42,6 +44,10 @@ func (s *Storage) AddNode(label string, props map[string]any) (string, error) {
 		return "", errors.New("node already exists")
 	}
 	s.nodes[id] = node
+	if s.nodesByLabel[label] == nil { // perf: index
+		s.nodesByLabel[label] = make(map[string]*types.Node) // perf: index
+	} // perf: index
+	s.nodesByLabel[label][id] = node // perf: index
 	return id, nil
 }
 
@@ -113,6 +119,20 @@ func (s *Storage) GetAllNodes() []*types.Node {
 	}
 	return list
 }
+
+func (s *Storage) GetNodesByLabel(label string) []*types.Node { // perf: index
+	s.mu.RLock()                        // perf: index
+	defer s.mu.RUnlock()                // perf: index
+	bucket, ok := s.nodesByLabel[label] // perf: index
+	if !ok {                            // perf: index
+		return []*types.Node{} // perf: index
+	} // perf: index
+	list := make([]*types.Node, 0, len(bucket)) // perf: index
+	for _, n := range bucket {                  // perf: index
+		list = append(list, n) // perf: index
+	} // perf: index
+	return list // perf: index
+} // perf: index
 
 func (s *Storage) GetAllEdges() []*types.Edge {
 	s.mu.RLock()
@@ -224,10 +244,12 @@ func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge {
 func (s *Storage) DeleteNode(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.nodes[id]; !ok {
+	n, ok := s.nodes[id] // perf: index
+	if !ok {             // perf: index
 		return fmt.Errorf("node not found")
 	}
 	delete(s.nodes, id)
+	delete(s.nodesByLabel[n.Label], id) // perf: index
 	for eid, e := range s.edges {
 		if e.From == id || e.To == id {
 			delete(s.edges, eid)
