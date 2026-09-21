@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -88,10 +89,25 @@ func runExport(cmd *cobra.Command, args []string) (err error) {
 	case FormatSVG:
 		return exportToSVG(nodes, edges, writer)
 	case FormatJSON:
-		return fmt.Errorf("json export not implemented yet")
+		return exportToJSON(nodes, edges, engine.Verbs().All(), writer)
 	}
 
 	return nil
+}
+
+func exportToJSON(nodes []*types.Node, edges []*types.Edge, verbs map[string]types.Verb, w io.Writer) error {
+	doc := struct {
+		Nodes []*types.Node         `json:"nodes"`
+		Edges []*types.Edge         `json:"edges"`
+		Verbs map[string]types.Verb `json:"verbs"`
+	}{nodes, edges, verbs}
+
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return fmt.Errorf("json marshal: %w", err)
+	}
+	_, err = w.Write(data)
+	return err
 }
 
 func exportToSVG(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
