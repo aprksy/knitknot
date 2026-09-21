@@ -8,13 +8,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- 
+- cmd/ test suite: 43 Ginkgo specs covering dispatch routing, exec
+  functions, and explain/export/sample regressions (previously zero
+  coverage).
+- pkg/storage/inmem concurrency + delete-cascade specs (5 specs);
+  inmem coverage now ~91%.
 
 ### Changed
-- 
+- Gob persistence format bumped to `knitknot/v0.2` (Subgraphs field
+  became a `map[string]*Subgraph`). `data.gob` was regenerated and
+  is now loadable; older `.gob` files produced before this release
+  will need to be re-saved.
+- `=` and `!=` filters coerce numerics like `>` and `<` (e.g.
+  `Where('n.age', '=', 51)` now matches string-stored `"51"`).
 
 ### Fixed
-- 
+- REPL `exit`/`quit` no longer bypass the deferred readline close
+  and the autosave on a `-f` file; both run via an `errExitRepl`
+  sentinel.
+- `UPDATE EDGE` actually parses trailing properties now (was a
+  dead-code branch that always reported `no properties to update`).
+- `--explain` no longer panics on numeric or missing arguments;
+  uses comma-ok assertions with arg-count guards.
+- `GetEdgesIn` auto-inherit branch no longer races on the stored
+  edge's `Subgraphs` map under `RLock`; deep-copies before write.
+- Subgraph scoping now works: `--subgraph <name>` and the DSL
+  `.In(<name>)` method both filter query candidates via
+  `GetNodesIn`.
+- Query filters without a `var.` prefix apply to the first node's
+  var instead of being silently dropped (e.g.
+  `Where('city', '=', 'Dallas')` from `docs/dsl.md` now returns
+  only Dallas customers).
+- `DeleteNode` cascades to every incident edge; previously left
+  dangling references in `GetAllEdges`, DOT export, and saved
+  files.
+- `AddToSubgraph`/`RemoveFromSubgraph` now lock `s.mu`.
+- `Save`/`Load` (and `runExport`) use named returns so deferred
+  `Close` errors propagate instead of being swallowed.
+- Node IDs are now generated via an atomic counter; removed the
+  dead/broken `internal/util/idgen.go`.
+- `export --format json` returns `not implemented` instead of a
+  silent exit 0.
+- `parseProps` joins spaced tokens onto the previous value, so
+  `ADDNODE Person name=John Doe` now records `name="John Doe"`
+  (was silently dropping `Doe`).
+- DSL parser no longer panics on empty `p.errors`; the EOF
+  branch returns a clearer `unexpected end of query` message;
+  unterminated string literals are rejected as `Illegal` tokens.
+- `generate-sample` without `-f` returns a usage error (was a
+  bare `open : no such file`); `os.Stat` after `Save`/`Load` is
+  guarded against nil-deref; `UPDATE EDGE` on a missing edge now
+  reports `edge not found` (not `node not found`).
 
 ---
 

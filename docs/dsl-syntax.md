@@ -1,11 +1,10 @@
 # KnitKnot DSL Syntax
 
 ## Syntax Diagram
-TODO: Use railroad diagram
-![DSL Syntax Diagram](dsl-syntax.png)
+A railroad diagram for the DSL syntax is not yet available. See the
+BNF below for the authoritative grammar.
 
 ## BNF Syntax
-TODO
 ```bnf
 Query       = FindMethod { ChainableMethod } "Exec()" ;
 FindMethod  = "Find(" String ")" ;

@@ -1,5 +1,3 @@
-[![Go Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen)](coverage.html)
-
 # KnitKnot
 
 > *A lightweight, embeddable property graph engine with a fluent query DSL.*
@@ -48,7 +46,7 @@ dot -Tsvg graph.dot > graph.svg
  
 ## Learn More 
 - [DSL Syntax Guide](docs/dsl.md)
-- [Architecture](docs/architecture.md)
+- [Architecture](docs/ARCHITECTURE.md)
 - [Contribute](docs/CONTRIBUTING.md)
 
 ## Changelog
