@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/aprksy/knitknot/extensions"
+	"github.com/aprksy/knitknot/extensions/cti"
 	"github.com/spf13/cobra"
 )
 
@@ -28,9 +29,12 @@ func init() { // ext: import-cmd
 // registerExtensions wires compiled-in extensions into the registry. // ext: import-cmd
 // A later lane replaces the body with real registrations; runImport calls // ext: import-cmd
 // through this hook so cmd/import.go stays untouched. // ext: import-cmd
-var registerExtensions = func(r extension.Registry) error { // ext: import-cmd
-	r.Freeze() // ext: import-cmd
-	return nil // ext: import-cmd
+var registerExtensions = func(r extension.Registry) error { // ext: cti-wire
+	if err := cti.New().Register(r); err != nil { // ext: cti-wire
+		return err // ext: cti-wire
+	} // ext: cti-wire
+	r.Freeze() // ext: cti-wire
+	return nil // ext: cti-wire
 }
 
 func runImport(cmd *cobra.Command, args []string) error { // ext: import-cmd

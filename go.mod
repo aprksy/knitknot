@@ -5,6 +5,7 @@ go 1.25.1
 replace github.com/aprksy/knitknot => ./
 
 require (
+	github.com/TcM1911/stix2 v0.10.4
 	github.com/chzyer/readline v1.5.1
 	github.com/onsi/ginkgo/v2 v2.25.3
 	github.com/onsi/gomega v1.38.2
@@ -17,6 +18,7 @@ require (
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
