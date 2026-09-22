@@ -145,6 +145,19 @@ them, file an issue and we can deprecate them in a release.
 
 ---
 
+## Domain extensions
+
+Business-domain behavior has its own living status docs:
+
+- [Threat Intelligence](docs/domains/threat-intelligence/STATUS.md) —
+  STIX 2.1 import is implemented (Stage 1); no version history, no STIX
+  export, markings stored but not enforced.
+
+See [docs/domains/README.md](docs/domains/README.md) for the boundary
+rules new domains must follow.
+
+---
+
 ## Documentation gaps
 
 These still ship with `TODO` placeholders:

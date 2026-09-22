@@ -1,6 +1,7 @@
 # Threat Intelligence Domain
 
-> **Status:** proposed design; not implemented
+> **Status:** Stage 1 implemented (STIX 2.1 import, vocabulary, identity).
+> Current behavior: [STATUS.md](STATUS.md).
 >
 > **Owner:** unassigned
 >
@@ -8,6 +9,8 @@
 
 This document defines how Threat Intelligence (CTI) should integrate with
 KnitKnot without coupling the foundational graph kernel to CTI vocabulary.
+It is the design record; [STATUS.md](STATUS.md) is the behavior record —
+if they disagree, file an issue.
 
 ## Problem statement
 
