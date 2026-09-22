@@ -35,4 +35,11 @@ TODO: *need edit*
 - Add RocksDBStorage backend
 - Support HTTP server
 - Enable distributed mode
+
+## Domain Extensions
+
+Business-domain implementations (threat intelligence, and future domains)
+live outside the graph kernel. See [docs/domains/README.md](domains/README.md)
+for the boundary rules, the candidate extension mechanism, and the
+admission checklist for new domains.
      

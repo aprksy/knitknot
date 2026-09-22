@@ -47,6 +47,7 @@ dot -Tsvg graph.dot > graph.svg
 ## Learn More 
 - [DSL Syntax Guide](docs/dsl.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Domain Extensions](docs/domains/README.md)
 - [Contribute](docs/CONTRIBUTING.md)
 - [Current Status](STATUS.md)
 
