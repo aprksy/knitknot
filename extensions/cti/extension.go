@@ -32,11 +32,14 @@ var ctiVerbs = []struct { // ext: cti-ext
 	{EdgeObjectRef, LabelObservable},            // ext: cti-ext
 } // ext: cti-ext
 
-// Register adds the stix-2.1 importer and the CTI relationship verbs. // ext: cti-ext
+// Register adds the stix-2.1 importer and exporter plus the CTI relationship verbs. // ext: cti-ext
 func (e *Extension) Register(r extension.Registry) error { // ext: cti-ext
 	if err := r.RegisterImporter("stix-2.1", NewSTIXImporter()); err != nil { // ext: cti-ext
 		return err // ext: cti-ext
 	} // ext: cti-ext
+	if err := r.RegisterExporter("stix-2.1", NewSTIXExporter()); err != nil { // ext: cti-export
+		return err // ext: cti-export
+	} // ext: cti-export
 	for _, v := range ctiVerbs { // ext: cti-ext
 		if err := r.RegisterVerb(v.kind, types.Verb{TargetLabel: v.target, MatchOn: "name"}); err != nil { // ext: cti-ext
 			return err // ext: cti-ext
