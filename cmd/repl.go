@@ -61,6 +61,9 @@ func runRepl(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if engine, err = resolveStoreBackend(engine); err != nil { // store: wire
+		return err // store: wire
+	}
 
 	if globalFlags.subgraph != "" {
 		engine = engine.WithSubgraph(globalFlags.subgraph)

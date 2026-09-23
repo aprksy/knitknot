@@ -50,6 +50,9 @@ func runImport(cmd *cobra.Command, args []string) error { // ext: import-cmd
 	if err != nil {                            // ext: import-cmd
 		return err // ext: import-cmd
 	}
+	if engine, err = resolveStoreBackend(engine); err != nil { // store: wire
+		return err // store: wire
+	}
 
 	f, err := os.Open(input) // ext: import-cmd
 	if err != nil {          // ext: import-cmd
