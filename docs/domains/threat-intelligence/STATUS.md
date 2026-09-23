@@ -2,7 +2,7 @@
 
 > **Living document.** A point-in-time snapshot of what users can rely on
 > from the Threat Intelligence extension in this build. Updated as the
-> extension changes. Last updated: 2026-09-22.
+> extension changes. Last updated: 2026-09-23.
 >
 > Design intent lives in [README.md](README.md). This file describes
 > behavior as it is. If a statement here disagrees with reality, reality
@@ -56,17 +56,27 @@ These behaviors are covered by `extensions/cti/*_test.go` and the
 
 ### Version history
 
-Version history is now preserved across re-imports: re-importing an
-updated object appends a new snapshot instead of destroying the old
-claim (graph kernel, ADR 0002). Temporal queries (e.g. "what did we
-know about this indicator on date X") are not yet surfaced in the DSL
-but the underlying primitives exist (`GetNodeAt`, `GetNodeHistory`,
-event-log queries on `VersionedStorage`).
+The graph kernel preserves append-only version history across re-imports
+(ADR 0002; nodes in `0893741`, edges in `51b8e89`, tombstone cascade on
+node delete in `05ec3c7`): every change appends a
+`Snapshot{Source, LogicalTime, Transaction}`, and re-importing an updated
+STIX SDO keeps v1 and v2 instead of overwriting. Delete is a tombstone,
+not real removal — `GetNode`/`GetEdge` still return tombstones for
+history access. Kernel primitives exist: `GetNodeAt(id, t)` /
+`GetNodeHistory(id)` / `GetEvents(revFrom, revTo)` /
+`GetEventsByTransaction(txID)`. Not yet exposed: a temporal DSL surface
+(`.AsOf('2024-04-01')`) — "what did the graph look like on date X" is
+only queryable via the kernel primitives directly, not through the
+parser yet.
 
-### No STIX export
+### STIX export
 
-`export --format json` gives the generic `{nodes, edges, verbs}` document,
-not a STIX bundle. Round-trip today means import-idempotency, not STIX-out.
+`knitknot export --format stix` works (Stage 2 item 1, `ce87c1d`):
+stix_id-gated export (only nodes carrying a `stix_id` are emitted),
+`CustomObject`-based lossless round-trip, deterministic sort by STIX ID,
+and a trailing `# knitknot skipped N nodes, M edges` summary line only
+when something was skipped. Not supported: the typed-constructor path
+and strict schema validation.
 
 ### No pattern parsing or schema validation
 
