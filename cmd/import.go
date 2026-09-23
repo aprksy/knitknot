@@ -7,6 +7,7 @@ import (
 
 	"github.com/aprksy/knitknot/extensions"
 	"github.com/aprksy/knitknot/extensions/cti"
+	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +38,20 @@ var registerExtensions = func(r extension.Registry) error { // ext: cti-wire
 	} // ext: cti-wire
 	r.Freeze() // ext: cti-wire
 	return nil // ext: cti-wire
+}
+
+// wireExtensionVerbs copies compiled-in extension verbs onto the engine so
+// Has(...) resolves TargetLabel/MatchOn through the CLI. Without this the
+// engine's registry is empty and every Has falls back to label "Entity".
+func wireExtensionVerbs(engine *graph.GraphEngine) error {
+	reg := extension.NewRegistry()
+	if err := registerExtensions(reg); err != nil {
+		return err
+	}
+	for name, v := range reg.Verbs() {
+		engine.RegisterVerb(name, v)
+	}
+	return nil
 }
 
 func runImport(cmd *cobra.Command, args []string) error { // ext: import-cmd

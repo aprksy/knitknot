@@ -14,6 +14,10 @@ import (
 
 func init() {
 	gob.Register(map[string]*types.Subgraph{}) // fix: H6
+	// persist: props hold JSON-shaped values (STIX import flattens bundles
+	// via map[string]any), so register the concrete types gob needs.
+	gob.Register([]interface{}{})
+	gob.Register(map[string]interface{}{})
 }
 
 // Save writes the current graph state to disk

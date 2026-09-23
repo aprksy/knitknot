@@ -37,6 +37,7 @@ type Registry interface {
 	RegisterExporter(name string, exporter Exporter) error
 	Importer(name string) (Importer, bool)
 	Exporter(name string) (Exporter, bool)
+	Verbs() map[string]types.Verb
 	Freeze()
 }
 
@@ -128,6 +129,17 @@ func (r *registry) Exporter(name string) (Exporter, bool) {
 		return nil, false
 	}
 	return exp, true
+}
+
+// Verbs returns a copy of the registered verbs.
+func (r *registry) Verbs() map[string]types.Verb {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	cp := make(map[string]types.Verb, len(r.verbs))
+	for k, v := range r.verbs {
+		cp[k] = v
+	}
+	return cp
 }
 
 func (r *registry) Freeze() {

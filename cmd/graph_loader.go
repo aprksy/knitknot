@@ -19,6 +19,9 @@ func LoadGraph(filename string) (*graph.GraphEngine, error) {
 
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		fmt.Fprintf(os.Stderr, "File %s not found, starting with empty graph\n", filename)
+		if err := wireExtensionVerbs(engine); err != nil {
+			return nil, err
+		}
 		return engine, nil
 	}
 
@@ -30,6 +33,10 @@ func LoadGraph(filename string) (*graph.GraphEngine, error) {
 		len(storage.GetAllNodes()),
 		len(storage.GetAllEdges()),
 		filename)
+
+	if err := wireExtensionVerbs(engine); err != nil {
+		return nil, err
+	}
 
 	return engine, nil
 }

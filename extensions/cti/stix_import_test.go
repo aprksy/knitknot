@@ -205,6 +205,8 @@ func (f *fakeRegistry) Importer(name string) (extension.Importer, bool) {
 
 func (f *fakeRegistry) Exporter(name string) (extension.Exporter, bool) { return nil, false }
 
+func (f *fakeRegistry) Verbs() map[string]types.Verb { return f.verbs }
+
 func (f *fakeRegistry) Freeze() {}
 
 func (f *fakeRegistry) importer(name string) (extension.Importer, bool) {

@@ -23,7 +23,7 @@ var ctiVerbs = []struct { // ext: cti-ext
 	target string // ext: cti-ext
 }{ // ext: cti-ext
 	{EdgeUses, LabelMalware},                    // ext: cti-ext
-	{EdgeTargets, LabelIdentity},                // ext: cti-ext
+	{EdgeTargets, LabelVulnerability},           // ext: cti-ext: targets points at vulnerabilities, not identities
 	{EdgeIndicates, LabelMalware},               // ext: cti-ext
 	{EdgeAttributedTo, LabelThreatActor},        // ext: cti-ext
 	{EdgeCommunicatesWith, LabelInfrastructure}, // ext: cti-ext
