@@ -3,14 +3,21 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/spf13/cobra"
+
+	portstorage "github.com/aprksy/knitknot/pkg/ports/storage"
 )
 
 var globalFlags struct {
 	subgraph string
 	file     string
 }
+
+// store: resolver — --store flag backing (separate from globalFlags so the
+// existing -f plumbing and its tests stay untouched).
+var storeFlag string
 
 var RootCmd = &cobra.Command{
 	Use:   "knitknot",
@@ -40,6 +47,21 @@ func init() {
 		"",
 		"Graph data file to load and save (e.g., data.gob)",
 	)
+	RootCmd.PersistentFlags().StringVar(
+		&storeFlag,
+		"store",
+		"",
+		"Store URI selecting the storage backend (e.g., gob:data.gob)",
+	)
+
+	ensureDefaultStore()
+}
+
+// store: backend — default gob registration, idempotent under re-entry.
+var storeOnce sync.Once
+
+func ensureDefaultStore() {
+	storeOnce.Do(func() { portstorage.Register(gobBackend{}) })
 }
 
 func initConfig() {
