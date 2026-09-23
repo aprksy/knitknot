@@ -16,4 +16,4 @@ type SavedGraph struct {
 	EventLog   []types.Event `json:"eventLog"`
 }
 
-const CurrentVersion = "knitknot/v0.3" // version: persist — adds History/DeletedAt/CreatedRev on Node + top-level event log
+const CurrentVersion = "knitknot/v0.4" // version: edge — adds History/DeletedAt/CreatedRev on Edge (Node gained them in v0.3)

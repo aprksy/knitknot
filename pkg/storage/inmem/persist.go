@@ -78,9 +78,9 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 		return fmt.Errorf("failed to decode %s (expected version %s): %w", filename, file.CurrentVersion, err) // fix: H6
 	}
 
-	// version: migrate — v0.2 loads with synthesized history; anything else must match.
+	// version: migrate — v0.3 and earlier load with synthesized history; anything else must match.
 	switch saved.Version {
-	case file.CurrentVersion, "knitknot/v0.2":
+	case file.CurrentVersion, "knitknot/v0.3", "knitknot/v0.2":
 	default:
 		return fmt.Errorf("unsupported version: %s (expected %s)", saved.Version, file.CurrentVersion)
 	}
@@ -118,6 +118,18 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 		s.nodesByLabel[n.Label][id] = n // perf: index
 	}
 	for id, e := range saved.Edges {
+		if len(e.History) == 0 {
+			// version: edge — legacy edges get one honest synthetic
+			// snapshot: Rev=1, unknown times, Source="legacy".
+			e.History = []types.Snapshot{{
+				Rev:         1,
+				LogicalTime: time.Time{},
+				EventTime:   time.Time{},
+				Props:       copyMap(e.Props),
+				Source:      "legacy",
+			}}
+			e.CreatedRev = 1
+		}
 		s.edges[id] = e
 	}
 
@@ -127,6 +139,14 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 	maxRev := saved.RevCounter
 	for _, n := range s.nodes {
 		for _, snap := range n.History {
+			if uint64(snap.Rev) > maxRev {
+				maxRev = uint64(snap.Rev)
+			}
+		}
+	}
+	// version: edge — edge snapshots also advance the counter.
+	for _, e := range s.edges {
+		for _, snap := range e.History {
 			if uint64(snap.Rev) > maxRev {
 				maxRev = uint64(snap.Rev)
 			}

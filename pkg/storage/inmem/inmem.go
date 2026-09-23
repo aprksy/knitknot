@@ -22,7 +22,7 @@ type Storage struct {
 	nodes        map[string]*types.Node
 	edges        map[string]*types.Edge
 	nodesByLabel map[string]map[string]*types.Node // label -> id -> *Node // perf: index
-	// version: eventlog — single per-Storage log indexing every node mutation.
+	// version: edge — single per-Storage log indexing every node+edge mutation.
 	eventLog   []types.Event
 	revCounter atomic.Uint64
 	now        func() time.Time
@@ -105,6 +105,11 @@ func (s *Storage) RemoveFromSubgraph(n *types.Node, sgName string) {
 }
 
 func (s *Storage) AddEdge(from, to, kind string, props map[string]any) error {
+	return s.AddEdgeWithMeta(from, to, kind, props, "", "")
+}
+
+// version: edge — AddEdgeWithMeta records the initial snapshot + create event.
+func (s *Storage) AddEdgeWithMeta(from, to, kind string, props map[string]any, source, transaction string) error {
 	s.mu.RLock()
 	_, fromOk := s.nodes[from]
 	_, toOk := s.nodes[to]
@@ -117,19 +122,46 @@ func (s *Storage) AddEdge(from, to, kind string, props map[string]any) error {
 		return errors.New("target node not found")
 	}
 
+	now := s.clock()
+	rev := int64(s.revCounter.Add(1))
+	tx := ensureTx(transaction)
+
 	id := fmt.Sprintf("%s->%s@%s", from, to, kind)
 	edge := &types.Edge{
-		ID:        id,
-		From:      from,
-		To:        to,
-		Kind:      kind,
-		Props:     copyMap(props),
-		Subgraphs: map[string]*types.Subgraph{},
+		ID:         id,
+		From:       from,
+		To:         to,
+		Kind:       kind,
+		Props:      copyMap(props),
+		Subgraphs:  map[string]*types.Subgraph{},
+		CreatedRev: rev,
+		History: []types.Snapshot{{
+			Rev:         rev,
+			EventTime:   now,
+			LogicalTime: now,
+			Props:       copyMap(props),
+			Source:      source,
+			Transaction: tx,
+		}},
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.edges[id] = edge
+	s.eventLog = append(s.eventLog, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "create",
+		ElementType: "edge",
+		ElementID:   id,
+		From:        from,
+		To:          to,
+		Kind:        kind,
+		Props:       copyMap(props),
+		Source:      source,
+		Transaction: tx,
+	})
 	return nil
 }
 
@@ -182,6 +214,9 @@ func (s *Storage) GetAllEdges() []*types.Edge {
 	defer s.mu.RUnlock()
 	list := make([]*types.Edge, 0, len(s.edges))
 	for _, e := range s.edges {
+		if e.DeletedAt != nil { // version: edge — live-only enumeration
+			continue
+		}
 		list = append(list, e)
 	}
 	return list
@@ -244,6 +279,14 @@ func (s *Storage) UpdateNodeWithMeta(id string, props map[string]any, source, tr
 }
 
 func (s *Storage) UpdateEdge(id string, props map[string]any) error {
+	return s.UpdateEdgeWithMeta(id, props, "", "")
+}
+
+// version: edge — UpdateEdge appends a snapshot; Props keeps REPLACE semantics.
+func (s *Storage) UpdateEdgeWithMeta(id string, props map[string]any, source, transaction string) error {
+	now := s.clock()
+	tx := ensureTx(transaction)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -251,8 +294,34 @@ func (s *Storage) UpdateEdge(id string, props map[string]any) error {
 	if !ok {
 		return fmt.Errorf("edge not found")
 	}
+	if edge.DeletedAt != nil {
+		return fmt.Errorf("edge deleted")
+	}
 
+	rev := int64(s.revCounter.Add(1))
 	edge.Props = copyMap(props)
+	edge.History = append(edge.History, types.Snapshot{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Props:       copyMap(props),
+		Source:      source,
+		Transaction: tx,
+	})
+	s.eventLog = append(s.eventLog, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "update",
+		ElementType: "edge",
+		ElementID:   id,
+		From:        edge.From,
+		To:          edge.To,
+		Kind:        edge.Kind,
+		Props:       copyMap(props),
+		Source:      source,
+		Transaction: tx,
+	})
 	return nil
 }
 
@@ -261,6 +330,9 @@ func (s *Storage) findEdges(match func(*types.Edge) bool) []*types.Edge {
 	defer s.mu.RUnlock()
 	var result []*types.Edge
 	for _, e := range s.edges {
+		if e.DeletedAt != nil { // version: edge — tombstones hidden centrally
+			continue
+		}
 		if match(e) {
 			result = append(result, e)
 		}
@@ -290,6 +362,9 @@ func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge {
 
 	var result []*types.Edge
 	for _, e := range s.edges {
+		if e.DeletedAt != nil { // version: edge — live-only enumeration
+			continue
+		}
 		// Edge belongs to subgraph if both ends do AND edge hasn't been removed
 		fromNode, ok1 := s.nodes[e.From]
 		toNode, ok2 := s.nodes[e.To]
@@ -322,9 +397,9 @@ func (s *Storage) DeleteNode(id string) error {
 	return s.DeleteNodeWithMeta(id, "", "")
 }
 
-// version: write-path — DeleteNode is a tombstone, not a removal.
+// version: edge — DeleteNode is a tombstone, not a removal.
 // The node stays findable via GetNode with DeletedAt set; incident
-// edges are still really deleted (edges are out of scope this lane).
+// edges are still really deleted (node-delete cascade bypasses edge tombstones).
 func (s *Storage) DeleteNodeWithMeta(id, source, transaction string) error {
 	now := s.clock()
 	tx := ensureTx(transaction)
@@ -369,13 +444,50 @@ func (s *Storage) DeleteNodeWithMeta(id, source, transaction string) error {
 }
 
 func (s *Storage) DeleteEdge(from, to, kind string) error {
+	return s.DeleteEdgeWithMeta(from, to, kind, "", "")
+}
+
+// version: edge — DeleteEdge is a tombstone, not a removal.
+// The edge stays findable via GetEdge with DeletedAt set.
+func (s *Storage) DeleteEdgeWithMeta(from, to, kind, source, transaction string) error {
+	now := s.clock()
+	tx := ensureTx(transaction)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := fmt.Sprintf("%s->%s@%s", from, to, kind)
-	if _, ok := s.edges[id]; !ok {
+	e, ok := s.edges[id]
+	if !ok {
 		return fmt.Errorf("edge not found")
 	}
-	delete(s.edges, id)
+	if e.DeletedAt != nil {
+		return fmt.Errorf("edge already deleted")
+	}
+	rev := int64(s.revCounter.Add(1))
+	e.History = append(e.History, types.Snapshot{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Props:       copyMap(e.Props),
+		Source:      source,
+		Transaction: tx,
+		Deleted:     true,
+	})
+	e.DeletedAt = &now
+	s.eventLog = append(s.eventLog, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "delete",
+		ElementType: "edge",
+		ElementID:   id,
+		From:        e.From,
+		To:          e.To,
+		Kind:        e.Kind,
+		Props:       copyMap(e.Props),
+		Source:      source,
+		Transaction: tx,
+	})
 	return nil
 }
 
@@ -418,6 +530,47 @@ func (s *Storage) GetNodeHistory(id string) []types.Snapshot {
 		return nil
 	}
 	return append([]types.Snapshot(nil), n.History...)
+}
+
+// version: edge — temporal reads for edges, mirroring GetNodeAt/GetNodeHistory.
+
+// GetEdgeAt returns the edge as of time t: latest snapshot with
+// EventTime <= t. Tombstone at t, zero t, or unknown id → not-found.
+func (s *Storage) GetEdgeAt(id string, t time.Time) (*types.Edge, bool) {
+	if t.IsZero() {
+		return nil, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	e, ok := s.edges[id]
+	if !ok {
+		return nil, false
+	}
+	best := -1
+	for i, snap := range e.History {
+		if !snap.EventTime.After(t) {
+			best = i
+		}
+	}
+	if best < 0 || e.History[best].Deleted {
+		return nil, false
+	}
+	cp := *e
+	cp.Props = copyMap(e.History[best].Props)
+	cp.DeletedAt = nil
+	cp.History = append([]types.Snapshot(nil), e.History[:best+1]...)
+	return &cp, true
+}
+
+// GetEdgeHistory returns the edge's full history, newest-last.
+func (s *Storage) GetEdgeHistory(id string) []types.Snapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	e, ok := s.edges[id]
+	if !ok {
+		return nil
+	}
+	return append([]types.Snapshot(nil), e.History...)
 }
 
 // GetEvents returns events in [fromRev, toRev] inclusive, Rev ascending.

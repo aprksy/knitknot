@@ -52,6 +52,10 @@ type Edge struct {
 	Kind      string               `json:"kind"`
 	Props     map[string]any       `json:"props"`
 	Subgraphs map[string]*Subgraph `json:"subgraphs,omitempty"`
+	// version: edge — append-only snapshots, newest last; len >= 1.
+	History    []Snapshot `json:"history"`
+	DeletedAt  *time.Time `json:"deletedAt,omitempty"`
+	CreatedRev int64      `json:"createdRev"`
 }
 
 type Subgraph struct {

@@ -10,7 +10,6 @@ import (
 // VersionedStorage is an optional interface alongside StorageEngine.
 // Backends that support append-only versioning implement it; backends
 // that don't simply don't (callers fall back to StorageEngine).
-// Edge history is deferred to a follow-up; this lane is nodes only.
 type VersionedStorage interface {
 	StorageEngine
 
@@ -21,6 +20,12 @@ type VersionedStorage interface {
 
 	// GetNodeHistory returns the element's full history, newest-last.
 	GetNodeHistory(id string) []types.Snapshot
+
+	// GetEdgeAt returns the edge as of time t: same semantics as GetNodeAt.
+	GetEdgeAt(id string, t time.Time) (*types.Edge, bool)
+
+	// GetEdgeHistory returns the edge's full history, newest-last.
+	GetEdgeHistory(id string) []types.Snapshot
 
 	// GetEvents returns events in [fromRev, toRev] inclusive, Rev ascending.
 	// toRev == 0 means "to current rev".
