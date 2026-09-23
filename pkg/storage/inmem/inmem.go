@@ -399,7 +399,7 @@ func (s *Storage) DeleteNode(id string) error {
 
 // version: edge — DeleteNode is a tombstone, not a removal.
 // The node stays findable via GetNode with DeletedAt set; incident
-// edges are still really deleted (node-delete cascade bypasses edge tombstones).
+// edges are tombstoned too (version: cascade-tombstone), never hard-deleted.
 func (s *Storage) DeleteNodeWithMeta(id, source, transaction string) error {
 	now := s.clock()
 	tx := ensureTx(transaction)
@@ -435,10 +435,44 @@ func (s *Storage) DeleteNodeWithMeta(id, source, transaction string) error {
 		Source:      source,
 		Transaction: tx,
 	})
-	for eid, e := range s.edges {
-		if e.From == id || e.To == id {
-			delete(s.edges, eid)
+	// version: cascade-tombstone — incident edges are tombstoned, never hard-deleted.
+	// They stay findable via GetEdge with DeletedAt set; live-only
+	// enumeration (findEdges/GetAllEdges/GetEdgesIn) already skips them.
+	// Edge events share the parent's Source/Transaction so the whole
+	// operation groups under one txid.
+	for _, e := range s.edges {
+		if e.From != id && e.To != id {
+			continue
 		}
+		if e.DeletedAt != nil { // version: cascade-tombstone — skip already-tombstoned edges
+			continue
+		}
+		rev := int64(s.revCounter.Add(1)) // version: cascade-tombstone — one rev per cascaded edge
+		e.History = append(e.History, types.Snapshot{
+			Rev:         rev,
+			EventTime:   now,
+			LogicalTime: now,
+			Props:       copyMap(e.Props),
+			Source:      source,
+			Transaction: tx,
+			Deleted:     true,
+		})
+		t := now // version: cascade-tombstone — per-edge DeletedAt copy
+		e.DeletedAt = &t
+		s.eventLog = append(s.eventLog, types.Event{
+			Rev:         rev,
+			EventTime:   now,
+			LogicalTime: now,
+			Op:          "delete",
+			ElementType: "edge",
+			ElementID:   e.ID,
+			From:        e.From,
+			To:          e.To,
+			Kind:        e.Kind,
+			Props:       copyMap(e.Props),
+			Source:      source,
+			Transaction: tx,
+		})
 	}
 	return nil
 }
