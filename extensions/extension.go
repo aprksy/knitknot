@@ -17,8 +17,14 @@ type Extension interface {
 	Register(Registry) error
 }
 
+// ImportContext carries feed metadata for an import run. // ext: source-feed
+type ImportContext struct { // ext: source-feed
+	Source      string // ext: source-feed — feed id, set by `knitknot import --source <feed-id>`
+	Transaction string // ext: source-feed — optional override; empty = auto-UUID
+} // ext: source-feed
+
 type Importer interface {
-	Import(ctx context.Context, s storage.StorageEngine, verbs *types.VerbRegistry, r io.Reader) error
+	Import(ctx context.Context, ic ImportContext, s storage.StorageEngine, verbs *types.VerbRegistry, r io.Reader) error
 }
 
 type Exporter interface {

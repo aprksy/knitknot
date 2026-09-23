@@ -39,7 +39,7 @@ type stagedRel struct { // ext: cti-import
 // Import reads a STIX 2.1 bundle and upserts its objects as nodes and edges. // ext: cti-import
 // Pass 1 stages and validates everything without touching storage; pass 2 // ext: cti-import
 // upserts nodes first, then resolves and upserts relationships. // ext: cti-import
-func (im *STIXImporter) Import(ctx context.Context, s storage.StorageEngine, verbs *types.VerbRegistry, r io.Reader) error { // ext: cti-import
+func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, verbs *types.VerbRegistry, r io.Reader) error { // ext: cti-import
 	_ = verbs                  // ext: cti-import
 	data, err := io.ReadAll(r) // ext: cti-import
 	if err != nil {            // ext: cti-import
@@ -74,8 +74,8 @@ func (im *STIXImporter) Import(ctx context.Context, s storage.StorageEngine, ver
 			if rel.RelationshipType == "" { // ext: cti-import
 				return fmt.Errorf("cti: relationship %q missing relationship_type", stixID) // ext: cti-import
 			} // ext: cti-import
-			props, err := graphProps(obj) // ext: cti-import
-			if err != nil {               // ext: cti-import
+			props, err := graphProps(obj, ic.Source) // ext: cti-import // ext: source-feed
+			if err != nil {                          // ext: cti-import
 				return fmt.Errorf("cti: relationship %q: %w", stixID, err) // ext: cti-import
 			} // ext: cti-import
 			rels = append(rels, stagedRel{stixID: stixID, kind: string(rel.RelationshipType), fromRef: string(rel.Source), toRef: string(rel.Target), props: props}) // ext: cti-import
@@ -86,8 +86,8 @@ func (im *STIXImporter) Import(ctx context.Context, s storage.StorageEngine, ver
 				return fmt.Errorf("cti: indicator %q missing required pattern, pattern_type, or valid_from", stixID) // ext: cti-import
 			} // ext: cti-import
 		} // ext: cti-import
-		props, err := graphProps(obj) // ext: cti-import
-		if err != nil {               // ext: cti-import
+		props, err := graphProps(obj, ic.Source) // ext: cti-import // ext: source-feed
+		if err != nil {                          // ext: cti-import
 			return fmt.Errorf("cti: object %q: %w", stixID, err) // ext: cti-import
 		} // ext: cti-import
 		// ext: cti-import — label is the STIX type verbatim; supported SDOs match vocabulary consts, anything else (SCOs, x-custom) is preserved as-is.
@@ -118,14 +118,14 @@ func (im *STIXImporter) Import(ctx context.Context, s storage.StorageEngine, ver
 			} // ext: cti-import
 		} // ext: cti-import
 		if existing := findNodeByLabel(s, n.label, n.stixID); existing != nil { // ext: cti-import
-			if err := s.UpdateNode(existing.ID, mergeProps(existing.Props, n.props)); err != nil { // ext: cti-import
+			if err := updateNodeSrc(s, existing.ID, mergeProps(existing.Props, n.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 				return fmt.Errorf("cti: update node %q: %w", n.stixID, err) // ext: cti-import
 			} // ext: cti-import
 			ids[n.stixID] = existing.ID // ext: cti-import
 			continue                    // ext: cti-import
 		} // ext: cti-import
-		gid, err := s.AddNode(n.label, n.props) // ext: cti-import
-		if err != nil {                         // ext: cti-import
+		gid, err := addNodeSrc(s, n.label, n.props, ic.Source, ic.Transaction) // ext: cti-import // ext: source-feed
+		if err != nil {                                                        // ext: cti-import
 			return fmt.Errorf("cti: add node %q: %w", n.stixID, err) // ext: cti-import
 		} // ext: cti-import
 		ids[n.stixID] = gid // ext: cti-import
@@ -155,12 +155,12 @@ func (im *STIXImporter) Import(ctx context.Context, s storage.StorageEngine, ver
 			} // ext: cti-import
 		} // ext: cti-import
 		if found != nil { // ext: cti-import
-			if err := s.UpdateEdge(found.ID, mergeProps(found.Props, rel.props)); err != nil { // ext: cti-import
+			if err := updateEdgeSrc(s, found.ID, mergeProps(found.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 				return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
 			} // ext: cti-import
 			continue // ext: cti-import
 		} // ext: cti-import
-		if err := s.AddEdge(from, to, rel.kind, rel.props); err != nil { // ext: cti-import
+		if err := addEdgeSrc(s, from, to, rel.kind, rel.props, ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 			return fmt.Errorf("cti: add edge %q: %w", rel.stixID, err) // ext: cti-import
 		} // ext: cti-import
 	} // ext: cti-import
@@ -170,7 +170,7 @@ func (im *STIXImporter) Import(ctx context.Context, s storage.StorageEngine, ver
 // graphProps flattens a STIX object to generic node/edge props via its JSON // ext: cti-import
 // form, so known fields and raw custom properties survive without a // ext: cti-import
 // per-type field list. // ext: cti-import
-func graphProps(obj stix2.STIXObject) (map[string]any, error) { // ext: cti-import
+func graphProps(obj stix2.STIXObject, source string) (map[string]any, error) { // ext: cti-import // ext: source-feed
 	raw, err := json.Marshal(obj) // ext: cti-import
 	if err != nil {               // ext: cti-import
 		return nil, err // ext: cti-import
@@ -181,10 +181,47 @@ func graphProps(obj stix2.STIXObject) (map[string]any, error) { // ext: cti-impo
 	} // ext: cti-import
 	props[StixID] = string(obj.GetID())                       // ext: cti-import
 	delete(props, "id")                                       // ext: cti-import
-	props[SourceFeed] = ""                                    // ext: cti-import
+	props[SourceFeed] = source                                // ext: cti-import // ext: source-feed
 	props[ImportedAt] = time.Now().UTC().Format(time.RFC3339) // ext: cti-import
 	return props, nil                                         // ext: cti-import
 } // ext: cti-import
+
+// metaStore is the optional versioning write path carrying source/transaction. // ext: source-feed
+// Backends without it fall back to plain StorageEngine writes (Source lost). // ext: source-feed
+type metaStore interface { // ext: source-feed
+	AddNodeWithMeta(label string, props map[string]any, source, transaction string) (string, error) // ext: source-feed
+	AddEdgeWithMeta(from, to, kind string, props map[string]any, source, transaction string) error  // ext: source-feed
+	UpdateNodeWithMeta(id string, props map[string]any, source, transaction string) error           // ext: source-feed
+	UpdateEdgeWithMeta(id string, props map[string]any, source, transaction string) error           // ext: source-feed
+} // ext: source-feed
+
+func addNodeSrc(s storage.StorageEngine, label string, props map[string]any, source, tx string) (string, error) { // ext: source-feed
+	if ms, ok := s.(metaStore); ok { // ext: source-feed
+		return ms.AddNodeWithMeta(label, props, source, tx) // ext: source-feed
+	} // ext: source-feed
+	return s.AddNode(label, props) // ext: source-feed
+} // ext: source-feed
+
+func addEdgeSrc(s storage.StorageEngine, from, to, kind string, props map[string]any, source, tx string) error { // ext: source-feed
+	if ms, ok := s.(metaStore); ok { // ext: source-feed
+		return ms.AddEdgeWithMeta(from, to, kind, props, source, tx) // ext: source-feed
+	} // ext: source-feed
+	return s.AddEdge(from, to, kind, props) // ext: source-feed
+} // ext: source-feed
+
+func updateNodeSrc(s storage.StorageEngine, id string, props map[string]any, source, tx string) error { // ext: source-feed
+	if ms, ok := s.(metaStore); ok { // ext: source-feed
+		return ms.UpdateNodeWithMeta(id, props, source, tx) // ext: source-feed
+	} // ext: source-feed
+	return s.UpdateNode(id, props) // ext: source-feed
+} // ext: source-feed
+
+func updateEdgeSrc(s storage.StorageEngine, id string, props map[string]any, source, tx string) error { // ext: source-feed
+	if ms, ok := s.(metaStore); ok { // ext: source-feed
+		return ms.UpdateEdgeWithMeta(id, props, source, tx) // ext: source-feed
+	} // ext: source-feed
+	return s.UpdateEdge(id, props) // ext: source-feed
+} // ext: source-feed
 
 // findNodeByLabel returns the node with label carrying stixID, or nil. // ext: cti-import
 func findNodeByLabel(s storage.StorageEngine, label, stixID string) *types.Node { // ext: cti-import

@@ -13,7 +13,7 @@ import (
 
 type stubImporter struct{} // ext: registry
 
-func (stubImporter) Import(ctx context.Context, s storage.StorageEngine, verbs *types.VerbRegistry, r io.Reader) error { // ext: registry
+func (stubImporter) Import(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, verbs *types.VerbRegistry, r io.Reader) error { // ext: registry
 	return nil
 }
 

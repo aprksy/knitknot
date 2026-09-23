@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aprksy/knitknot/extensions"
 	"github.com/aprksy/knitknot/extensions/cti"
 	"github.com/aprksy/knitknot/pkg/ports/types"
 	"github.com/aprksy/knitknot/pkg/storage/inmem"
@@ -36,8 +37,8 @@ func importFixture(t *testing.T) *inmem.Storage { // ext: cti-export
 	if err != nil {                                                            // ext: cti-export
 		t.Fatalf("read fixture: %v", err) // ext: cti-export
 	} // ext: cti-export
-	s := inmem.New()                                                                                                              // ext: cti-export
-	if err := cti.NewSTIXImporter().Import(context.Background(), s, types.NewVerbRegistry(), bytes.NewReader(data)); err != nil { // ext: cti-export
+	s := inmem.New()                                                                                                                                         // ext: cti-export
+	if err := cti.NewSTIXImporter().Import(context.Background(), extension.ImportContext{}, s, types.NewVerbRegistry(), bytes.NewReader(data)); err != nil { // ext: cti-export
 		t.Fatalf("import: %v", err) // ext: cti-export
 	} // ext: cti-export
 	return s // ext: cti-export

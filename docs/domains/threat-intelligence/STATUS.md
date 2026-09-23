@@ -79,11 +79,14 @@ invalid structure rejected only where the library's own rules trip).
 TLP and granular markings ride along as properties. Nothing filters on
 them. Do not present this to a compliance officer as TLP handling.
 
-### `source_feed` is empty
+### `source_feed` is set at import time
 
-Every node gets the field; nothing fills it yet. Multi-feed attribution
-(which claim came from which producer) is recorded structurally but not
-populated.
+`knitknot import --source <feed-id>` populates `source_feed` on every
+imported node and edge, and the value flows into the versioning
+`Snapshot.Source` / event-log `Source` so provenance is queryable. A
+feed id is still only as good as the operator's discipline — there is no
+feed registry or validation of the id itself — but the structural
+attribution is populated.
 
 ### Single-writer upsert, no transactions
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aprksy/knitknot/extensions"
 	"github.com/aprksy/knitknot/extensions/cti"
 	"github.com/aprksy/knitknot/pkg/ports/types"
 	"github.com/aprksy/knitknot/pkg/storage/inmem"
@@ -28,7 +29,7 @@ func readFixture(t *testing.T) []byte { // ext: cti-fixture
 
 func importBytes(t *testing.T, s *inmem.Storage, data []byte) { // ext: cti-fixture
 	t.Helper()
-	if err := cti.NewSTIXImporter().Import(context.Background(), s, types.NewVerbRegistry(), bytes.NewReader(data)); err != nil {
+	if err := cti.NewSTIXImporter().Import(context.Background(), extension.ImportContext{}, s, types.NewVerbRegistry(), bytes.NewReader(data)); err != nil {
 		t.Fatalf("import: %v", err)
 	}
 }
@@ -121,7 +122,7 @@ func TestFixtureWholesomeDanglingRef(t *testing.T) { // ext: cti-fixture
      "target_ref": "malware--dddddddd-dddd-dddd-dddd-dddddddddddd"}
   ]
 }`
-	if err := cti.NewSTIXImporter().Import(context.Background(), s, types.NewVerbRegistry(), strings.NewReader(bad)); err == nil {
+	if err := cti.NewSTIXImporter().Import(context.Background(), extension.ImportContext{}, s, types.NewVerbRegistry(), strings.NewReader(bad)); err == nil {
 		t.Fatal("expected error for dangling relationship target")
 	}
 	if got := len(s.GetAllNodes()); got != 0 {

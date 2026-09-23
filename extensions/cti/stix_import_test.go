@@ -42,7 +42,7 @@ func stixOf(n *types.Node) string {
 
 func TestImportRelFirst(t *testing.T) {
 	s := inmem.New()
-	if err := cti.NewSTIXImporter().Import(context.Background(), s, types.NewVerbRegistry(), strings.NewReader(bundleRelFirst)); err != nil {
+	if err := cti.NewSTIXImporter().Import(context.Background(), extension.ImportContext{}, s, types.NewVerbRegistry(), strings.NewReader(bundleRelFirst)); err != nil {
 		t.Fatalf("import: %v", err)
 	}
 	if got := len(s.GetAllNodes()); got != 2 {
@@ -74,7 +74,7 @@ func TestImportIdempotent(t *testing.T) {
 	imp := cti.NewSTIXImporter()
 	vr := types.NewVerbRegistry()
 	for i := 0; i < 2; i++ {
-		if err := imp.Import(context.Background(), s, vr, strings.NewReader(bundleRelFirst)); err != nil {
+		if err := imp.Import(context.Background(), extension.ImportContext{}, s, vr, strings.NewReader(bundleRelFirst)); err != nil {
 			t.Fatalf("import %d: %v", i, err)
 		}
 	}
@@ -102,7 +102,7 @@ func TestImportDanglingRefNoPartialMutation(t *testing.T) {
      "target_ref": "malware--99999999-9999-9999-9999-999999999999"}
   ]
 }`
-	if err := cti.NewSTIXImporter().Import(context.Background(), s, types.NewVerbRegistry(), strings.NewReader(bad)); err == nil {
+	if err := cti.NewSTIXImporter().Import(context.Background(), extension.ImportContext{}, s, types.NewVerbRegistry(), strings.NewReader(bad)); err == nil {
 		t.Fatal("expected error for dangling relationship target")
 	}
 	if got := len(s.GetAllNodes()); got != 0 {
@@ -125,7 +125,7 @@ func TestImportCustomObjectPreserved(t *testing.T) {
      "name": "weird", "custom_prop": "kept"}
   ]
 }`
-	if err := cti.NewSTIXImporter().Import(context.Background(), s, types.NewVerbRegistry(), strings.NewReader(bundle)); err != nil {
+	if err := cti.NewSTIXImporter().Import(context.Background(), extension.ImportContext{}, s, types.NewVerbRegistry(), strings.NewReader(bundle)); err != nil {
 		t.Fatalf("import: %v", err)
 	}
 	nodes := s.GetAllNodes()
@@ -143,6 +143,43 @@ func TestImportCustomObjectPreserved(t *testing.T) {
 		t.Fatalf("stix_id = %q, want %q", stixOf(n), customID)
 	}
 }
+
+func TestImportSourceFeed(t *testing.T) { // ext: source-feed
+	s := inmem.New()                                                                                                                                                                             // ext: source-feed
+	if err := cti.NewSTIXImporter().Import(context.Background(), extension.ImportContext{Source: "northwind-cert"}, s, types.NewVerbRegistry(), strings.NewReader(bundleRelFirst)); err != nil { // ext: source-feed
+		t.Fatalf("import: %v", err) // ext: source-feed
+	} // ext: source-feed
+	for _, n := range s.GetAllNodes() { // ext: source-feed
+		if v, _ := n.Props[cti.SourceFeed].(string); v != "northwind-cert" { // ext: source-feed
+			t.Fatalf("node %q source_feed = %q, want northwind-cert", n.ID, v) // ext: source-feed
+		} // ext: source-feed
+	} // ext: source-feed
+	for _, e := range s.GetAllEdges() { // ext: source-feed
+		if v, _ := e.Props[cti.SourceFeed].(string); v != "northwind-cert" { // ext: source-feed
+			t.Fatalf("edge %q source_feed = %q, want northwind-cert", e.ID, v) // ext: source-feed
+		} // ext: source-feed
+	} // ext: source-feed
+	sawNode := false                    // ext: source-feed
+	for _, n := range s.GetAllNodes() { // ext: source-feed
+		if len(n.History) > 0 && n.History[0].Source == "northwind-cert" { // ext: source-feed
+			sawNode = true // ext: source-feed
+			break          // ext: source-feed
+		} // ext: source-feed
+	} // ext: source-feed
+	if !sawNode { // ext: source-feed
+		t.Fatal("no node with History[0].Source == northwind-cert") // ext: source-feed
+	} // ext: source-feed
+	sawEvent := false                      // ext: source-feed
+	for _, ev := range s.GetEvents(1, 0) { // ext: source-feed
+		if ev.Source == "northwind-cert" { // ext: source-feed
+			sawEvent = true // ext: source-feed
+			break           // ext: source-feed
+		} // ext: source-feed
+	} // ext: source-feed
+	if !sawEvent { // ext: source-feed
+		t.Fatal("no event with Source == northwind-cert") // ext: source-feed
+	} // ext: source-feed
+} // ext: source-feed
 
 type fakeRegistry struct {
 	verbs     map[string]types.Verb

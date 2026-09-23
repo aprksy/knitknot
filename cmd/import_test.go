@@ -21,7 +21,7 @@ type stubImporter struct { // ext: import-cmd
 	err    error // ext: import-cmd
 }
 
-func (s *stubImporter) Import(ctx context.Context, st storage.StorageEngine, verbs *types.VerbRegistry, r io.Reader) error { // ext: import-cmd
+func (s *stubImporter) Import(ctx context.Context, ic extension.ImportContext, st storage.StorageEngine, verbs *types.VerbRegistry, r io.Reader) error { // ext: import-cmd
 	s.called = true // ext: import-cmd
 	return s.err    // ext: import-cmd
 }
