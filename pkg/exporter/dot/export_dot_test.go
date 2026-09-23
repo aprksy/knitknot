@@ -33,13 +33,22 @@ var _ = Describe("ExportToDOT", func() {
 		Expect(out).To(HaveSuffix("}\n"))
 	})
 
-	It("maps hyphens in IDs to underscores in node names", func() {
+	It("maps hyphens in IDs to underscores in quoted node names", func() {
 		out := export([]*types.Node{
 			{ID: "n42", Label: "Person"},
 			{ID: "indicator--abc-def", Label: "Person"},
 		}, nil)
-		Expect(out).To(ContainSubstring("N_n42 [label="))
-		Expect(out).To(ContainSubstring("N_indicator__abc_def [label="))
+		Expect(out).To(ContainSubstring(`"N_n42" [label=`))
+		Expect(out).To(ContainSubstring(`"N_indicator__abc_def" [label=`))
+	})
+
+	It("quotes node IDs containing spaces and escapes embedded quotes", func() {
+		out := export([]*types.Node{
+			{ID: "has space", Label: "Person"},
+			{ID: `with"quote`, Label: "Person"},
+		}, nil)
+		Expect(out).To(ContainSubstring(`"N_has space" [label=`))
+		Expect(out).To(ContainSubstring(`"N_with\"quote" [label=`))
 	})
 
 	It("uses the name prop in the node label", func() {
@@ -56,7 +65,14 @@ var _ = Describe("ExportToDOT", func() {
 		Expect(out).To(ContainSubstring(`label="Person:Dr"`))
 	})
 
-	It("prefers name over title when both are present", func() {
+	It("falls back to title when name is present but empty", func() {
+		out := export([]*types.Node{
+			{ID: "n1", Label: "Person", Props: map[string]any{"name": "", "title": "Dr"}},
+		}, nil)
+		Expect(out).To(ContainSubstring(`label="Person:Dr"`))
+	})
+
+	It("prefers a non-empty name over title when both are present", func() {
 		out := export([]*types.Node{
 			{ID: "n1", Label: "Person", Props: map[string]any{"name": "Alice", "title": "Dr"}},
 		}, nil)
@@ -76,17 +92,33 @@ var _ = Describe("ExportToDOT", func() {
 			{ID: "n1", Label: "A"},
 			{ID: "n2", Label: "B"},
 		}, []*types.Edge{
-			{From: "n1", To: "n2", Kind: "rel"},
+			{ID: "n1->n2@rel", From: "n1", To: "n2", Kind: "rel"},
 		})
-		Expect(out).To(ContainSubstring(`N_n1 -> N_n2 [label="rel"];`))
+		Expect(out).To(ContainSubstring(`"N_n1" -> "N_n2" [label="rel"];`))
 	})
 
-	It("dedups edges with the same from->to@kind", func() {
+	It("dedups the same edge passed twice", func() {
 		out := export(nil, []*types.Edge{
-			{From: "n1", To: "n2", Kind: "rel"},
-			{From: "n1", To: "n2", Kind: "rel"},
+			{ID: "n1->n2@rel", From: "n1", To: "n2", Kind: "rel"},
+			{ID: "n1->n2@rel", From: "n1", To: "n2", Kind: "rel"},
 		})
-		Expect(strings.Count(out, `N_n1 -> N_n2 [label="rel"];`)).To(Equal(1))
+		Expect(strings.Count(out, `"N_n1" -> "N_n2" [label="rel"];`)).To(Equal(1))
+	})
+
+	It("emits both edges when IDs differ between the same nodes", func() {
+		out := export(nil, []*types.Edge{
+			{ID: "e1", From: "n1", To: "n2", Kind: "rel", Props: map[string]any{"w": 1}},
+			{ID: "e2", From: "n1", To: "n2", Kind: "rel", Props: map[string]any{"w": 2}},
+		})
+		Expect(strings.Count(out, `"N_n1" -> "N_n2" [label="rel"];`)).To(Equal(2))
+	})
+
+	It("dedups edges whose raw IDs differ but mapped names collide", func() {
+		out := export(nil, []*types.Edge{
+			{ID: "e1", From: "a-b", To: "n2", Kind: "rel"},
+			{ID: "e1", From: "a_b", To: "n2", Kind: "rel"},
+		})
+		Expect(strings.Count(out, `"N_a_b" -> "N_n2" [label="rel"];`)).To(Equal(1))
 	})
 
 	It("emits both edges when kinds differ between the same nodes", func() {
@@ -94,42 +126,50 @@ var _ = Describe("ExportToDOT", func() {
 			{From: "n1", To: "n2", Kind: "rel"},
 			{From: "n1", To: "n2", Kind: "other"},
 		})
-		Expect(out).To(ContainSubstring(`N_n1 -> N_n2 [label="rel"];`))
-		Expect(out).To(ContainSubstring(`N_n1 -> N_n2 [label="other"];`))
+		Expect(out).To(ContainSubstring(`"N_n1" -> "N_n2" [label="rel"];`))
+		Expect(out).To(ContainSubstring(`"N_n1" -> "N_n2" [label="other"];`))
 	})
 
 	It("emits a self-loop", func() {
 		out := export(nil, []*types.Edge{
 			{From: "n1", To: "n1", Kind: "rel"},
 		})
-		Expect(out).To(ContainSubstring(`N_n1 -> N_n1 [label="rel"];`))
+		Expect(out).To(ContainSubstring(`"N_n1" -> "N_n1" [label="rel"];`))
 	})
 
 	It("emits just the envelope for an empty graph", func() {
 		Expect(export(nil, nil)).To(Equal("digraph KnitKnot {\n}\n"))
 	})
 
-	It("matches a golden string for a small graph", func() {
+	It("matches a golden string for a small graph in sorted order", func() {
 		out := export([]*types.Node{
-			{ID: "n1", Label: "Person", Props: map[string]any{"name": "Alice"}},
 			{ID: "n2", Label: "Skill", Props: map[string]any{"title": "Go"}},
+			{ID: "n1", Label: "Person", Props: map[string]any{"name": "Alice"}},
 		}, []*types.Edge{
-			{From: "n1", To: "n2", Kind: "has_skill"},
-			{From: "n2", To: "n1", Kind: "taught_by"},
+			{ID: "n2->n1@taught_by", From: "n2", To: "n1", Kind: "taught_by"},
+			{ID: "n1->n2@has_skill", From: "n1", To: "n2", Kind: "has_skill"},
 		})
 		Expect(out).To(Equal("digraph KnitKnot {\n" +
-			"  N_n1 [label=\"Person:Alice\", shape=box, style=rounded];\n" +
-			"  N_n2 [label=\"Skill:Go\", shape=box, style=rounded];\n" +
-			"  N_n1 -> N_n2 [label=\"has_skill\"];\n" +
-			"  N_n2 -> N_n1 [label=\"taught_by\"];\n" +
+			`  "N_n1" [label="Person:Alice", shape=box, style=rounded];` + "\n" +
+			`  "N_n2" [label="Skill:Go", shape=box, style=rounded];` + "\n" +
+			`  "N_n1" -> "N_n2" [label="has_skill"];` + "\n" +
+			`  "N_n2" -> "N_n1" [label="taught_by"];` + "\n" +
 			"}\n"))
 	})
 
-	It("Go-quotes labels containing quotes", func() {
+	It("DOT-escapes labels containing quotes", func() {
 		out := export([]*types.Node{
 			{ID: "n1", Label: "Person", Props: map[string]any{"name": `Bob "the builder"`}},
 		}, nil)
 		Expect(out).To(ContainSubstring(`Bob \"the builder\"`))
+	})
+
+	It("DOT-escapes newlines in labels instead of emitting a literal newline", func() {
+		out := export([]*types.Node{
+			{ID: "n1", Label: "A\nB"},
+		}, nil)
+		Expect(out).To(ContainSubstring(`label="A\nB"`))
+		Expect(out).NotTo(ContainSubstring("label=\"A\nB\""))
 	})
 
 	It("propagates write errors", func() {
