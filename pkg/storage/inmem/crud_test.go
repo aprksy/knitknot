@@ -162,12 +162,14 @@ var _ = Describe("In-Memory Storage CRUD", func() {
 				Expect(err).NotTo(HaveOccurred())
 			})
 
-			It("should remove node", func() {
+			It("should tombstone node (version: ADR 0002)", func() {
 				err := storage.DeleteNode(nodeID)
 				Expect(err).NotTo(HaveOccurred())
 
-				_, ok := storage.GetNode(nodeID)
-				Expect(ok).To(BeFalse())
+				// Tombstone stays findable via GetNode with DeletedAt set.
+				node, ok := storage.GetNode(nodeID)
+				Expect(ok).To(BeTrue())
+				Expect(node.DeletedAt).NotTo(BeNil())
 			})
 
 			It("should not be idempotent", func() {

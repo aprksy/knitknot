@@ -6,18 +6,26 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/aprksy/knitknot/pkg/ports/storage"
 	"github.com/aprksy/knitknot/pkg/ports/types"
 )
 
 var _ storage.StorageEngine = (*Storage)(nil)
+var _ storage.VersionedStorage = (*Storage)(nil) // version: api — inmem implements VersionedStorage
 
 type Storage struct {
 	mu           sync.RWMutex
 	nodes        map[string]*types.Node
 	edges        map[string]*types.Edge
 	nodesByLabel map[string]map[string]*types.Node // label -> id -> *Node // perf: index
+	// version: eventlog — single per-Storage log indexing every node mutation.
+	eventLog   []types.Event
+	revCounter atomic.Uint64
+	now        func() time.Time
 }
 
 func New() *Storage {
@@ -25,16 +33,34 @@ func New() *Storage {
 		nodes:        make(map[string]*types.Node),
 		edges:        make(map[string]*types.Edge),
 		nodesByLabel: make(map[string]map[string]*types.Node), // perf: index
+		now:          time.Now,
 	}
 }
 
 func (s *Storage) AddNode(label string, props map[string]any) (string, error) {
+	return s.AddNodeWithMeta(label, props, "", "")
+}
+
+// version: write-path — AddNodeWithMeta records the initial snapshot + create event.
+func (s *Storage) AddNodeWithMeta(label string, props map[string]any, source, transaction string) (string, error) {
 	id := generateID()
+	now := s.clock()
+	rev := int64(s.revCounter.Add(1))
+	tx := ensureTx(transaction)
 	node := &types.Node{
-		ID:        id,
-		Label:     label,
-		Props:     copyMap(props),
-		Subgraphs: map[string]*types.Subgraph{},
+		ID:         id,
+		Label:      label,
+		Props:      copyMap(props),
+		Subgraphs:  map[string]*types.Subgraph{},
+		CreatedRev: rev,
+		History: []types.Snapshot{{
+			Rev:         rev,
+			EventTime:   now,
+			LogicalTime: now,
+			Props:       copyMap(props),
+			Source:      source,
+			Transaction: tx,
+		}},
 	}
 
 	s.mu.Lock()
@@ -48,6 +74,17 @@ func (s *Storage) AddNode(label string, props map[string]any) (string, error) {
 		s.nodesByLabel[label] = make(map[string]*types.Node) // perf: index
 	} // perf: index
 	s.nodesByLabel[label][id] = node // perf: index
+	s.eventLog = append(s.eventLog, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "create",
+		ElementType: "node",
+		ElementID:   id,
+		Props:       copyMap(props),
+		Source:      source,
+		Transaction: tx,
+	})
 	return id, nil
 }
 
@@ -115,6 +152,9 @@ func (s *Storage) GetAllNodes() []*types.Node {
 	defer s.mu.RUnlock()
 	list := make([]*types.Node, 0, len(s.nodes))
 	for _, n := range s.nodes {
+		if n.DeletedAt != nil { // version: live-only enumeration
+			continue
+		}
 		list = append(list, n)
 	}
 	return list
@@ -129,6 +169,9 @@ func (s *Storage) GetNodesByLabel(label string) []*types.Node { // perf: index
 	} // perf: index
 	list := make([]*types.Node, 0, len(bucket)) // perf: index
 	for _, n := range bucket {                  // perf: index
+		if n.DeletedAt != nil { // version: live-only enumeration
+			continue
+		}
 		list = append(list, n) // perf: index
 	} // perf: index
 	return list // perf: index
@@ -157,6 +200,14 @@ func (s *Storage) GetEdgesByKind(kind string) []*types.Edge {
 }
 
 func (s *Storage) UpdateNode(id string, props map[string]any) error {
+	return s.UpdateNodeWithMeta(id, props, "", "")
+}
+
+// version: write-path — UpdateNode appends a snapshot; Props keeps REPLACE semantics.
+func (s *Storage) UpdateNodeWithMeta(id string, props map[string]any, source, transaction string) error {
+	now := s.clock()
+	tx := ensureTx(transaction)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -164,8 +215,31 @@ func (s *Storage) UpdateNode(id string, props map[string]any) error {
 	if !ok {
 		return fmt.Errorf("node not found")
 	}
+	if node.DeletedAt != nil {
+		return fmt.Errorf("node deleted")
+	}
 
+	rev := int64(s.revCounter.Add(1))
 	node.Props = copyMap(props)
+	node.History = append(node.History, types.Snapshot{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Props:       copyMap(props),
+		Source:      source,
+		Transaction: tx,
+	})
+	s.eventLog = append(s.eventLog, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "update",
+		ElementType: "node",
+		ElementID:   id,
+		Props:       copyMap(props),
+		Source:      source,
+		Transaction: tx,
+	})
 	return nil
 }
 
@@ -200,6 +274,9 @@ func (s *Storage) GetNodesIn(subgraph string) []*types.Node {
 
 	var result []*types.Node
 	for _, n := range s.nodes {
+		if n.DeletedAt != nil { // version: live-only enumeration
+			continue
+		}
 		if _, exists := n.Subgraphs[subgraph]; exists {
 			result = append(result, n)
 		}
@@ -242,14 +319,47 @@ func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge {
 }
 
 func (s *Storage) DeleteNode(id string) error {
+	return s.DeleteNodeWithMeta(id, "", "")
+}
+
+// version: write-path — DeleteNode is a tombstone, not a removal.
+// The node stays findable via GetNode with DeletedAt set; incident
+// edges are still really deleted (edges are out of scope this lane).
+func (s *Storage) DeleteNodeWithMeta(id, source, transaction string) error {
+	now := s.clock()
+	tx := ensureTx(transaction)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n, ok := s.nodes[id] // perf: index
 	if !ok {             // perf: index
 		return fmt.Errorf("node not found")
 	}
-	delete(s.nodes, id)
-	delete(s.nodesByLabel[n.Label], id) // perf: index
+	if n.DeletedAt != nil {
+		return fmt.Errorf("node already deleted")
+	}
+	rev := int64(s.revCounter.Add(1))
+	n.History = append(n.History, types.Snapshot{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Props:       copyMap(n.Props),
+		Source:      source,
+		Transaction: tx,
+		Deleted:     true,
+	})
+	n.DeletedAt = &now
+	s.eventLog = append(s.eventLog, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "delete",
+		ElementType: "node",
+		ElementID:   id,
+		Props:       copyMap(n.Props),
+		Source:      source,
+		Transaction: tx,
+	})
 	for eid, e := range s.edges {
 		if e.From == id || e.To == id {
 			delete(s.edges, eid)
@@ -269,6 +379,91 @@ func (s *Storage) DeleteEdge(from, to, kind string) error {
 	return nil
 }
 
+// version: read-path — temporal + event-log queries (ADR 0002).
+
+// GetNodeAt returns the node as of time t: latest snapshot with
+// EventTime <= t. Tombstone at t, zero t, or unknown id → not-found.
+func (s *Storage) GetNodeAt(id string, t time.Time) (*types.Node, bool) {
+	if t.IsZero() {
+		return nil, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n, ok := s.nodes[id]
+	if !ok {
+		return nil, false
+	}
+	best := -1
+	for i, snap := range n.History {
+		if !snap.EventTime.After(t) {
+			best = i
+		}
+	}
+	if best < 0 || n.History[best].Deleted {
+		return nil, false
+	}
+	cp := *n
+	cp.Props = copyMap(n.History[best].Props)
+	cp.DeletedAt = nil
+	cp.History = append([]types.Snapshot(nil), n.History[:best+1]...)
+	return &cp, true
+}
+
+// GetNodeHistory returns the node's full history, newest-last.
+func (s *Storage) GetNodeHistory(id string) []types.Snapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n, ok := s.nodes[id]
+	if !ok {
+		return nil
+	}
+	return append([]types.Snapshot(nil), n.History...)
+}
+
+// GetEvents returns events in [fromRev, toRev] inclusive, Rev ascending.
+// toRev == 0 means "to current rev".
+func (s *Storage) GetEvents(fromRev, toRev int64) []types.Event {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	hi := toRev
+	if hi == 0 {
+		hi = int64(s.revCounter.Load())
+	}
+	var out []types.Event
+	for _, e := range s.eventLog {
+		if e.Rev >= fromRev && e.Rev <= hi {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// GetEventsByTransaction returns events sharing a transaction ID, Rev order.
+func (s *Storage) GetEventsByTransaction(txID string) []types.Event {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []types.Event
+	for _, e := range s.eventLog {
+		if e.Transaction == txID {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// EventsTouching returns events for one element ID, Rev order.
+func (s *Storage) EventsTouching(elementID string) []types.Event {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []types.Event
+	for _, e := range s.eventLog {
+		if e.ElementID == elementID {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // Helpers
 func copyMap(m map[string]any) map[string]any {
 	if m == nil {
@@ -279,6 +474,22 @@ func copyMap(m map[string]any) map[string]any {
 		cp[k] = v
 	}
 	return cp
+}
+
+// version: clock — injectable in production via now field; defaults to time.Now.
+func (s *Storage) clock() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
+// version: tx — per-call transaction auto-generates a UUID (ADR open decision #3).
+func ensureTx(tx string) string {
+	if tx != "" {
+		return tx
+	}
+	return uuid.NewString()
 }
 
 var idSeq atomic.Uint64

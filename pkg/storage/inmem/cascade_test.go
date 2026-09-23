@@ -33,8 +33,10 @@ var _ = Describe("DeleteNode cascade", func() {
 
 			Expect(storage.DeleteNode(a)).To(Succeed())
 
-			_, ok := storage.GetNode(a)
-			Expect(ok).To(BeFalse())
+			// version: tombstone — node stays findable with DeletedAt set.
+			tomb, ok := storage.GetNode(a)
+			Expect(ok).To(BeTrue())
+			Expect(tomb.DeletedAt).NotTo(BeNil())
 
 			Expect(storage.GetEdgesFrom(a)).To(BeEmpty())
 			Expect(storage.GetEdgesTo(a)).To(BeEmpty())
@@ -59,8 +61,10 @@ var _ = Describe("DeleteNode cascade", func() {
 			Expect(storage.DeleteNode(lonely)).To(Succeed())
 			Expect(storage.GetAllEdges()).To(HaveLen(before))
 
-			_, ok := storage.GetNode(lonely)
-			Expect(ok).To(BeFalse())
+			// version: tombstone — node stays findable with DeletedAt set.
+			tomb, ok := storage.GetNode(lonely)
+			Expect(ok).To(BeTrue())
+			Expect(tomb.DeletedAt).NotTo(BeNil())
 		})
 
 		It("returns an error for a missing id", func() {

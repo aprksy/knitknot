@@ -42,8 +42,10 @@ var _ = Describe("execDelete / execDeleteEdge", func() {
 		Expect(out.String()).To(ContainSubstring("Deleted node"))
 		st := engine.Storage().(*inmem.Storage)
 		Expect(st.GetAllEdges()).To(BeEmpty())
-		_, ok := engine.GetNode(aID)
-		Expect(ok).To(BeFalse())
+		// version: tombstone — node stays findable with DeletedAt set.
+		tomb, ok := engine.GetNode(aID)
+		Expect(ok).To(BeTrue())
+		Expect(tomb.DeletedAt).NotTo(BeNil())
 	})
 
 	It("deletes an edge via EDGE spec", func() {

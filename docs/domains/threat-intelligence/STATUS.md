@@ -11,6 +11,9 @@
 Stage 1 is implemented and shipped: STIX 2.1 bundle import into the graph,
 queryable through the existing DSL, REPL, and exporters.
 
+What's new since Stage 1: the graph kernel now preserves append-only
+version history across re-imports (ADR 0002) — see "Version history" below.
+
 ---
 
 ## What works
@@ -51,12 +54,14 @@ These behaviors are covered by `extensions/cti/*_test.go` and the
 
 ## What users should not expect
 
-### No version history
+### Version history
 
-Re-importing an *updated* object merges new props over old (destructive).
-The old claim is gone. The blueprint's temporal model (coexisting versions,
-point-in-time queries) is Stage 2+ work. If you need "what did we believe
-last month," this doesn't answer it.
+Version history is now preserved across re-imports: re-importing an
+updated object appends a new snapshot instead of destroying the old
+claim (graph kernel, ADR 0002). Temporal queries (e.g. "what did we
+know about this indicator on date X") are not yet surfaced in the DSL
+but the underlying primitives exist (`GetNodeAt`, `GetNodeHistory`,
+event-log queries on `VersionedStorage`).
 
 ### No STIX export
 

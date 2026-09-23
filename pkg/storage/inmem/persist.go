@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/aprksy/knitknot/pkg/ports/types"
@@ -47,8 +48,13 @@ func (s *Storage) Save(filename string, engine *graph.GraphEngine) (err error) {
 	for id, e := range s.edges {
 		saved.Edges[id] = e
 	}
+	// version: persist — event log + rev counter ride along top-level.
+	saved.RevCounter = s.revCounter.Load()
+	saved.EventLog = append([]types.Event(nil), s.eventLog...)
 
-	saved.Verbs = engine.Verbs().All()
+	if engine != nil {
+		saved.Verbs = engine.Verbs().All()
+	}
 
 	encoder := gob.NewEncoder(f)
 	return encoder.Encode(saved)
@@ -72,8 +78,15 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 		return fmt.Errorf("failed to decode %s (expected version %s): %w", filename, file.CurrentVersion, err) // fix: H6
 	}
 
-	if saved.Version != file.CurrentVersion {
+	// version: migrate — v0.2 loads with synthesized history; anything else must match.
+	switch saved.Version {
+	case file.CurrentVersion, "knitknot/v0.2":
+	default:
 		return fmt.Errorf("unsupported version: %s (expected %s)", saved.Version, file.CurrentVersion)
+	}
+
+	if s.now == nil {
+		s.now = time.Now
 	}
 
 	s.mu.Lock()
@@ -86,6 +99,18 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 
 	// Restore
 	for id, n := range saved.Nodes {
+		if len(n.History) == 0 {
+			// version: migrate — legacy nodes get one honest synthetic
+			// snapshot: Rev=1, unknown times, Source="legacy".
+			n.History = []types.Snapshot{{
+				Rev:         1,
+				LogicalTime: time.Time{},
+				EventTime:   time.Time{},
+				Props:       copyMap(n.Props),
+				Source:      "legacy",
+			}}
+			n.CreatedRev = 1
+		}
 		s.nodes[id] = n
 		if s.nodesByLabel[n.Label] == nil { // perf: index
 			s.nodesByLabel[n.Label] = make(map[string]*types.Node) // perf: index
@@ -96,9 +121,29 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 		s.edges[id] = e
 	}
 
+	// version: persist — restore the log; rev counter resumes past the
+	// highest rev seen so no revision is ever reused.
+	s.eventLog = append([]types.Event(nil), saved.EventLog...)
+	maxRev := saved.RevCounter
+	for _, n := range s.nodes {
+		for _, snap := range n.History {
+			if uint64(snap.Rev) > maxRev {
+				maxRev = uint64(snap.Rev)
+			}
+		}
+	}
+	for _, e := range s.eventLog {
+		if uint64(e.Rev) > maxRev {
+			maxRev = uint64(e.Rev)
+		}
+	}
+	s.revCounter.Store(maxRev)
+
 	// After restoring nodes/edges
-	for name, verb := range saved.Verbs {
-		engine.RegisterVerb(name, verb) // assuming engine is passed in
+	if engine != nil {
+		for name, verb := range saved.Verbs {
+			engine.RegisterVerb(name, verb) // assuming engine is passed in
+		}
 	}
 
 	return nil
