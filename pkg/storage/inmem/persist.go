@@ -96,6 +96,9 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 	s.nodes = make(map[string]*types.Node)
 	s.edges = make(map[string]*types.Edge)
 	s.nodesByLabel = make(map[string]map[string]*types.Node) // perf: index
+	s.edgesByFrom = make(map[string]map[string]*types.Edge)  // perf: edge-index
+	s.edgesByTo = make(map[string]map[string]*types.Edge)    // perf: edge-index
+	s.edgesByKind = make(map[string]map[string]*types.Edge)  // perf: edge-index
 
 	// Restore
 	for id, n := range saved.Nodes {
@@ -131,6 +134,7 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 			e.CreatedRev = 1
 		}
 		s.edges[id] = e
+		indexEdge(s, e) // perf: edge-index — rebuild all three indexes in one pass
 	}
 
 	// version: persist — restore the log; rev counter resumes past the

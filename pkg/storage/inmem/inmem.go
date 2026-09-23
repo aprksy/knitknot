@@ -22,6 +22,9 @@ type Storage struct {
 	nodes        map[string]*types.Node
 	edges        map[string]*types.Edge
 	nodesByLabel map[string]map[string]*types.Node // label -> id -> *Node // perf: index
+	edgesByFrom  map[string]map[string]*types.Edge // from-id -> edge-id -> *Edge // perf: edge-index
+	edgesByTo    map[string]map[string]*types.Edge // to-id -> edge-id -> *Edge // perf: edge-index
+	edgesByKind  map[string]map[string]*types.Edge // kind -> edge-id -> *Edge // perf: edge-index
 	// version: edge — single per-Storage log indexing every node+edge mutation.
 	eventLog   []types.Event
 	revCounter atomic.Uint64
@@ -33,6 +36,9 @@ func New() *Storage {
 		nodes:        make(map[string]*types.Node),
 		edges:        make(map[string]*types.Edge),
 		nodesByLabel: make(map[string]map[string]*types.Node), // perf: index
+		edgesByFrom:  make(map[string]map[string]*types.Edge), // perf: edge-index
+		edgesByTo:    make(map[string]map[string]*types.Edge), // perf: edge-index
+		edgesByKind:  make(map[string]map[string]*types.Edge), // perf: edge-index
 		now:          time.Now,
 	}
 }
@@ -148,6 +154,7 @@ func (s *Storage) AddEdgeWithMeta(from, to, kind string, props map[string]any, s
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.edges[id] = edge
+	indexEdge(s, edge) // perf: edge-index
 	s.eventLog = append(s.eventLog, types.Event{
 		Rev:         rev,
 		EventTime:   now,
@@ -222,16 +229,65 @@ func (s *Storage) GetAllEdges() []*types.Edge {
 	return list
 }
 
-func (s *Storage) GetEdgesFrom(from string) []*types.Edge {
-	return s.findEdges(func(e *types.Edge) bool { return e.From == from })
+func (s *Storage) GetEdgesFrom(from string) []*types.Edge { // perf: edge-index
+	s.mu.RLock()                               // perf: edge-index
+	defer s.mu.RUnlock()                       // perf: edge-index
+	if bucket, ok := s.edgesByFrom[from]; ok { // perf: edge-index
+		return liveBucket(bucket) // perf: edge-index
+	} // perf: edge-index
+	return []*types.Edge{} // perf: edge-index
+} // perf: edge-index
+
+func (s *Storage) GetEdgesTo(to string) []*types.Edge { // perf: edge-index
+	s.mu.RLock()                           // perf: edge-index
+	defer s.mu.RUnlock()                   // perf: edge-index
+	if bucket, ok := s.edgesByTo[to]; ok { // perf: edge-index
+		return liveBucket(bucket) // perf: edge-index
+	} // perf: edge-index
+	return []*types.Edge{} // perf: edge-index
+} // perf: edge-index
+
+func (s *Storage) GetEdgesByKind(kind string) []*types.Edge { // perf: edge-index
+	s.mu.RLock()                               // perf: edge-index
+	defer s.mu.RUnlock()                       // perf: edge-index
+	if bucket, ok := s.edgesByKind[kind]; ok { // perf: edge-index
+		return liveBucket(bucket) // perf: edge-index
+	} // perf: edge-index
+	return []*types.Edge{} // perf: edge-index
+} // perf: edge-index
+
+// liveBucket copies live edges from one index bucket. Tombstoned edges stay
+// in the index (still findable via GetEdge) but are hidden here, mirroring
+// the GetNodesByLabel live-only convention. Caller must hold at least RLock.
+// perf: edge-index
+func liveBucket(bucket map[string]*types.Edge) []*types.Edge {
+	list := make([]*types.Edge, 0, len(bucket))
+	for _, e := range bucket {
+		if e.DeletedAt != nil { // version: edge — live-only enumeration
+			continue
+		}
+		list = append(list, e)
+	}
+	return list
 }
 
-func (s *Storage) GetEdgesTo(to string) []*types.Edge {
-	return s.findEdges(func(e *types.Edge) bool { return e.To == to })
-}
-
-func (s *Storage) GetEdgesByKind(kind string) []*types.Edge {
-	return s.findEdges(func(e *types.Edge) bool { return e.Kind == kind })
+// indexEdge inserts e into all three edge indexes; caller must hold the
+// write lock. From/To/Kind never change after creation so entries are
+// stable for the edge's lifetime, including after tombstoning.
+// perf: edge-index
+func indexEdge(s *Storage, e *types.Edge) {
+	if s.edgesByFrom[e.From] == nil {
+		s.edgesByFrom[e.From] = make(map[string]*types.Edge)
+	}
+	s.edgesByFrom[e.From][e.ID] = e
+	if s.edgesByTo[e.To] == nil {
+		s.edgesByTo[e.To] = make(map[string]*types.Edge)
+	}
+	s.edgesByTo[e.To][e.ID] = e
+	if s.edgesByKind[e.Kind] == nil {
+		s.edgesByKind[e.Kind] = make(map[string]*types.Edge)
+	}
+	s.edgesByKind[e.Kind][e.ID] = e
 }
 
 func (s *Storage) UpdateNode(id string, props map[string]any) error {
@@ -440,39 +496,46 @@ func (s *Storage) DeleteNodeWithMeta(id, source, transaction string) error {
 	// enumeration (findEdges/GetAllEdges/GetEdgesIn) already skips them.
 	// Edge events share the parent's Source/Transaction so the whole
 	// operation groups under one txid.
-	for _, e := range s.edges {
-		if e.From != id && e.To != id {
-			continue
+	// perf: edge-index — incident edges come from the from/to indexes,
+	// O(incident) instead of an O(N) scan. A self-loop id->id sits in both
+	// buckets, so dedupe by edge ID.
+	seen := make(map[string]struct{}, len(s.edgesByFrom[id])+len(s.edgesByTo[id]))        // perf: edge-index
+	for _, bucket := range []map[string]*types.Edge{s.edgesByFrom[id], s.edgesByTo[id]} { // perf: edge-index
+		for eid, e := range bucket { // perf: edge-index
+			if _, dup := seen[eid]; dup { // perf: edge-index
+				continue // perf: edge-index
+			} // perf: edge-index
+			seen[eid] = struct{}{}  // perf: edge-index
+			if e.DeletedAt != nil { // version: cascade-tombstone — skip already-tombstoned edges
+				continue
+			}
+			rev := int64(s.revCounter.Add(1)) // version: cascade-tombstone — one rev per cascaded edge
+			e.History = append(e.History, types.Snapshot{
+				Rev:         rev,
+				EventTime:   now,
+				LogicalTime: now,
+				Props:       copyMap(e.Props),
+				Source:      source,
+				Transaction: tx,
+				Deleted:     true,
+			})
+			t := now // version: cascade-tombstone — per-edge DeletedAt copy
+			e.DeletedAt = &t
+			s.eventLog = append(s.eventLog, types.Event{
+				Rev:         rev,
+				EventTime:   now,
+				LogicalTime: now,
+				Op:          "delete",
+				ElementType: "edge",
+				ElementID:   e.ID,
+				From:        e.From,
+				To:          e.To,
+				Kind:        e.Kind,
+				Props:       copyMap(e.Props),
+				Source:      source,
+				Transaction: tx,
+			})
 		}
-		if e.DeletedAt != nil { // version: cascade-tombstone — skip already-tombstoned edges
-			continue
-		}
-		rev := int64(s.revCounter.Add(1)) // version: cascade-tombstone — one rev per cascaded edge
-		e.History = append(e.History, types.Snapshot{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Props:       copyMap(e.Props),
-			Source:      source,
-			Transaction: tx,
-			Deleted:     true,
-		})
-		t := now // version: cascade-tombstone — per-edge DeletedAt copy
-		e.DeletedAt = &t
-		s.eventLog = append(s.eventLog, types.Event{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Op:          "delete",
-			ElementType: "edge",
-			ElementID:   e.ID,
-			From:        e.From,
-			To:          e.To,
-			Kind:        e.Kind,
-			Props:       copyMap(e.Props),
-			Source:      source,
-			Transaction: tx,
-		})
 	}
 	return nil
 }
@@ -483,6 +546,9 @@ func (s *Storage) DeleteEdge(from, to, kind string) error {
 
 // version: edge — DeleteEdge is a tombstone, not a removal.
 // The edge stays findable via GetEdge with DeletedAt set.
+// perf: edge-index — tombstoning leaves the indexes untouched: the edge
+// stays in all three buckets and live-only getters filter it via DeletedAt,
+// exactly like nodesByLabel keeps tombstoned nodes.
 func (s *Storage) DeleteEdgeWithMeta(from, to, kind, source, transaction string) error {
 	now := s.clock()
 	tx := ensureTx(transaction)
