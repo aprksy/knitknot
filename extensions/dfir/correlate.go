@@ -1,7 +1,6 @@
 package dfir
 
 import (
-	"github.com/aprksy/knitknot/extensions/cti"
 	"github.com/aprksy/knitknot/pkg/ports/storage"
 	"github.com/aprksy/knitknot/pkg/ports/types"
 )
@@ -36,7 +35,7 @@ type Match struct {
 // input order; a miss yields no entry. Every ref list is deduped by node.
 func Correlate(s storage.StorageEngine, caseObs []CaseObservable) []Match {
 	byKey := make(map[string][]*types.Node)
-	for _, n := range s.GetNodesByLabel(cti.LabelIndicator) {
+	for _, n := range s.GetNodesByLabel(LabelIndicator) {
 		pat, _ := n.Props["pattern"].(string)
 		if pat == "" {
 			continue
@@ -68,7 +67,7 @@ func Correlate(s storage.StorageEngine, caseObs []CaseObservable) []Match {
 		}
 		for _, ind := range inds {
 			for _, e := range s.GetEdgesFrom(ind.ID) {
-				if e.Kind != cti.EdgeIndicates {
+				if e.Kind != EdgeIndicates {
 					continue
 				}
 				mal, ok := s.GetNode(e.To)
@@ -77,7 +76,7 @@ func Correlate(s storage.StorageEngine, caseObs []CaseObservable) []Match {
 				}
 				addRef(&m.Malware, seenMal, ref(mal))
 				for _, e2 := range s.GetEdgesFrom(mal.ID) {
-					if e2.Kind != cti.EdgeUses {
+					if e2.Kind != EdgeUses {
 						continue
 					}
 					if ttp, ok := s.GetNode(e2.To); ok {
@@ -85,7 +84,7 @@ func Correlate(s storage.StorageEngine, caseObs []CaseObservable) []Match {
 					}
 				}
 				for _, e3 := range s.GetEdgesTo(mal.ID) {
-					if e3.Kind != cti.EdgeUses {
+					if e3.Kind != EdgeUses {
 						continue
 					}
 					// STIX models campaign→uses→malware: incoming direction.
@@ -95,7 +94,7 @@ func Correlate(s storage.StorageEngine, caseObs []CaseObservable) []Match {
 					}
 					addRef(&m.Campaigns, seenCamp, ref(camp))
 					for _, e4 := range s.GetEdgesFrom(camp.ID) {
-						if e4.Kind != cti.EdgeAttributedTo {
+						if e4.Kind != EdgeAttributedTo {
 							continue
 						}
 						if actor, ok := s.GetNode(e4.To); ok {
@@ -112,7 +111,7 @@ func Correlate(s storage.StorageEngine, caseObs []CaseObservable) []Match {
 
 func ref(n *types.Node) NodeRef {
 	name, _ := n.Props["name"].(string)
-	sid, _ := n.Props[cti.StixID].(string)
+	sid, _ := n.Props[PropStixID].(string)
 	return NodeRef{ID: n.ID, Label: n.Label, Name: name, StixID: sid}
 }
 

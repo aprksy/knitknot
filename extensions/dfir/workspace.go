@@ -3,7 +3,6 @@ package dfir
 import (
 	"fmt"
 
-	"github.com/aprksy/knitknot/extensions/cti"
 	"github.com/aprksy/knitknot/pkg/ports/storage"
 )
 
@@ -21,9 +20,9 @@ type WorkspaceStats struct {
 // contextKinds are the CTI edge kinds copied into the workspace: the links
 // between matched indicators and their reachable adversary context.
 var contextKinds = map[string]bool{
-	cti.EdgeIndicates:    true,
-	cti.EdgeUses:         true,
-	cti.EdgeAttributedTo: true,
+	EdgeIndicates:    true,
+	EdgeUses:         true,
+	EdgeAttributedTo: true,
 }
 
 // BuildWorkspace writes a projected case workspace into dst: case observables,
@@ -64,11 +63,11 @@ func BuildWorkspace(src, dst storage.StorageEngine, caseObs []CaseObservable, ca
 		key := m.Observable.Key()
 		if _, ok := obsNodes[key]; !ok {
 			canon := m.Observable.Canonical()
-			id, err := dst.AddNode(cti.LabelObservable, map[string]any{
+			id, err := dst.AddNode(LabelObservable, map[string]any{
 				"type":         m.Observable.Type,
 				"value":        canon,
 				"name":         canon, // MatchOn=name so Has('based-on', value) resolves
-				cti.SourceFeed: caseSource,
+				PropSourceFeed: caseSource,
 			})
 			if err != nil {
 				return stats, fmt.Errorf("dfir: workspace: add observable: %w", err)
@@ -110,7 +109,7 @@ func BuildWorkspace(src, dst storage.StorageEngine, caseObs []CaseObservable, ca
 
 	// Inducing edges: matched indicator -based-on-> observable.
 	for _, in := range inductions {
-		if err := dst.AddEdge(idMap[in.fromSrc], obsNodes[in.obsKey], cti.EdgeBasedOn, map[string]any{cti.SourceFeed: caseSource}); err != nil {
+		if err := dst.AddEdge(idMap[in.fromSrc], obsNodes[in.obsKey], EdgeBasedOn, map[string]any{PropSourceFeed: caseSource}); err != nil {
 			return stats, fmt.Errorf("dfir: workspace: add based-on edge: %w", err)
 		}
 		stats.Edges++
