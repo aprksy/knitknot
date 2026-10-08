@@ -24,6 +24,7 @@ docs/domains/
 Current domains:
 
 - [Threat Intelligence](threat-intelligence/README.md)
+- [DFIR Case × CTI Correlation](dfir/README.md)
 
 When implementation begins, the candidate source layout is:
 

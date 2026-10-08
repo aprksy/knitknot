@@ -49,6 +49,7 @@ dot -Tsvg graph.dot > graph.svg
 - [Architecture](docs/ARCHITECTURE.md)
 - [Domain Extensions](docs/domains/README.md)
 - [CTI Analysis — TI & TH tutorials](docs/cti/README.md)
+- [DFIR Case × CTI Correlation](docs/domains/dfir/GUIDE.md)
 - [Contribute](docs/CONTRIBUTING.md)
 - [Current Status](STATUS.md)
 

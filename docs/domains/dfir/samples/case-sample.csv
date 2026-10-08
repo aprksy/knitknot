@@ -1,0 +1,4 @@
+type,value,context
+domain,tutorial-c2.example.com,proxy log
+sha256,a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90,file scan
+ipv4,203.0.113.9,firewall
