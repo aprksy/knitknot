@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/TcM1911/stix2"
@@ -125,6 +126,7 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 		} // ext: cti-import
 	} // ext: cti-import
 	ids := make(map[string]string, len(nodes)) // ext: cti-import
+	skipped := 0                              // ext: cti-import — stale re-imports skipped below
 	pass2 := func() error { // ext: cti-import
 	for i, n := range nodes {                  // ext: cti-import
 		if i%64 == 0 { // ext: cti-import
@@ -133,6 +135,11 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 			} // ext: cti-import
 		} // ext: cti-import
 		if existing, ok := known[n.stixID]; ok { // ext: cti-import
+			if isStale(existing.Props, n.props) { // ext: cti-import — older re-import: keep live props, no new snapshot
+				skipped++ // ext: cti-import
+				ids[n.stixID] = existing.ID // ext: cti-import
+				continue                    // ext: cti-import
+			} // ext: cti-import
 			if err := updateNodeSrc(s, existing.ID, mergeProps(existing.Props, n.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 				return fmt.Errorf("cti: update node %q: %w", n.stixID, err) // ext: cti-import
 			} // ext: cti-import
@@ -172,6 +179,10 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 		key := from + "\x00" + to + "\x00" + rel.kind // ext: cti-import
 		if eid, ok := seen[key]; ok {                 // ext: cti-import — dup in this import
 			if e, ok := s.GetEdge(eid); ok { // ext: cti-import
+				if isStale(e.Props, rel.props) { // ext: cti-import
+					skipped++ // ext: cti-import
+					continue // ext: cti-import
+				} // ext: cti-import
 				if err := updateEdgeSrc(s, e.ID, mergeProps(e.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 					return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
 				} // ext: cti-import
@@ -187,6 +198,11 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 			fromCache[from] = bucket // ext: cti-import
 		} // ext: cti-import
 		if found, ok := bucket[to+"\x00"+rel.kind]; ok { // ext: cti-import
+			if isStale(found.Props, rel.props) { // ext: cti-import
+				seen[key] = found.ID // ext: cti-import
+				skipped++ // ext: cti-import
+				continue             // ext: cti-import
+			} // ext: cti-import
 			if err := updateEdgeSrc(s, found.ID, mergeProps(found.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 				return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
 			} // ext: cti-import
@@ -214,9 +230,16 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 	return nil // ext: cti-import
 	} // ext: cti-import
 	if bs, ok := s.(batchStore); ok { // ext: cti-import
-		return bs.Batch(pass2) // ext: cti-import
+		if err := bs.Batch(pass2); err != nil { // ext: cti-import
+			return err // ext: cti-import
+		} // ext: cti-import
+	} else if err := pass2(); err != nil { // ext: cti-import
+		return err // ext: cti-import
 	} // ext: cti-import
-	return pass2() // ext: cti-import
+	if skipped > 0 { // ext: cti-import
+		fmt.Fprintf(os.Stderr, "cti: skipped %d stale object(s) older than stored snapshots\n", skipped) // ext: cti-import
+	} // ext: cti-import
+	return nil // ext: cti-import
 } // ext: cti-import
 
 // graphProps flattens a STIX object to generic node/edge props via its JSON // ext: cti-import
@@ -297,6 +320,33 @@ func findGraphID(s storage.StorageEngine, stixID string) string { // ext: cti-im
 		} // ext: cti-import
 	} // ext: cti-import
 	return "" // ext: cti-import
+} // ext: cti-import
+
+// isStale reports whether newProps predates oldProps by STIX `modified`. // ext: cti-import
+// Missing or unparseable timestamps on either side mean "can't tell" — // ext: cti-import
+// not stale, so the update proceeds as before. Equal timestamps proceed. // ext: cti-import
+func isStale(oldProps, newProps map[string]any) bool { // ext: cti-import
+	oldT, ok := stixTime(oldProps["modified"]) // ext: cti-import
+	if !ok { // ext: cti-import
+		return false // ext: cti-import
+	} // ext: cti-import
+	newT, ok := stixTime(newProps["modified"]) // ext: cti-import
+	if !ok { // ext: cti-import
+		return false // ext: cti-import
+	} // ext: cti-import
+	return newT.Before(oldT) // ext: cti-import
+} // ext: cti-import
+
+func stixTime(v any) (time.Time, bool) { // ext: cti-import
+	s, ok := v.(string) // ext: cti-import
+	if !ok || s == "" { // ext: cti-import
+		return time.Time{}, false // ext: cti-import
+	} // ext: cti-import
+	t, err := time.Parse(time.RFC3339Nano, s) // ext: cti-import
+	if err != nil { // ext: cti-import
+		return time.Time{}, false // ext: cti-import
+	} // ext: cti-import
+	return t, true // ext: cti-import
 } // ext: cti-import
 
 // mergeProps overlays new on old without mutating either input. // ext: cti-import

@@ -273,3 +273,78 @@ func TestExtensionRegisters(t *testing.T) {
 		}
 	}
 }
+
+func staleBundle(modified, name, relModified string) string {
+	return `{
+  "type": "bundle",
+  "id": "bundle--99999999-9999-9999-9999-999999999999",
+  "objects": [
+    {"type": "relationship", "spec_version": "2.1", "id": "` + relID + `",
+     "created": "2024-01-02T00:00:00.000Z", "modified": "` + relModified + `",
+     "relationship_type": "indicates", "source_ref": "` + indID + `", "target_ref": "` + malID + `"},
+    {"type": "indicator", "spec_version": "2.1", "id": "` + indID + `",
+     "created": "2024-01-01T00:00:00.000Z", "modified": "` + modified + `",
+     "name": "` + name + `", "pattern": "[domain-name:value = 'evil.example.com']",
+     "pattern_type": "stix", "valid_from": "2024-01-01T00:00:00.000Z"},
+    {"type": "malware", "spec_version": "2.1", "id": "` + malID + `",
+     "created": "2024-01-01T00:00:00.000Z", "modified": "2024-01-01T00:00:00.000Z",
+     "name": "EvilWare", "is_family": false, "malware_types": ["ransomware"]}
+  ]}`
+}
+
+func liveIndicatorName(t *testing.T, s *inmem.Storage) (string, int) {
+	t.Helper()
+	inds := s.GetNodesByLabel("indicator")
+	if len(inds) != 1 {
+		t.Fatalf("indicators = %d, want 1", len(inds))
+	}
+	name, _ := inds[0].Props["name"].(string)
+	return name, len(inds[0].History)
+}
+
+func TestImportStaleSkipped(t *testing.T) {
+	s := inmem.New()
+	imp := cti.NewSTIXImporter()
+	vr := types.NewVerbRegistry()
+	doImport := func(bundle string) {
+		t.Helper()
+		if err := imp.Import(context.Background(), extension.ImportContext{}, s, vr, strings.NewReader(bundle)); err != nil {
+			t.Fatalf("import: %v", err)
+		}
+	}
+	edgeHistoryLen := func() int {
+		t.Helper()
+		edges := s.GetAllEdges()
+		if len(edges) != 1 {
+			t.Fatalf("edges = %d, want 1", len(edges))
+		}
+		return len(s.GetEdgeHistory(edges[0].ID))
+	}
+
+	// v2 first: live takes v2 values, one snapshot each.
+	doImport(staleBundle("2024-02-01T00:00:00.000Z", "new", "2024-02-01T00:00:00.000Z"))
+	if name, snaps := liveIndicatorName(t, s); name != "new" || snaps != 1 {
+		t.Fatalf("after v2: name=%q snaps=%d, want new/1", name, snaps)
+	}
+	if n := edgeHistoryLen(); n != 1 {
+		t.Fatalf("after v2: edge snaps=%d, want 1", n)
+	}
+
+	// v1 re-import (older): skipped — live stays v2, no new snapshots.
+	doImport(staleBundle("2024-01-01T00:00:00.000Z", "old", "2024-01-01T00:00:00.000Z"))
+	if name, snaps := liveIndicatorName(t, s); name != "new" || snaps != 1 {
+		t.Fatalf("after stale v1: name=%q snaps=%d, want new/1", name, snaps)
+	}
+	if n := edgeHistoryLen(); n != 1 {
+		t.Fatalf("after stale v1: edge snaps=%d, want 1", n)
+	}
+
+	// v3 (newer): updates as before.
+	doImport(staleBundle("2024-03-01T00:00:00.000Z", "newer", "2024-03-01T00:00:00.000Z"))
+	if name, snaps := liveIndicatorName(t, s); name != "newer" || snaps != 2 {
+		t.Fatalf("after v3: name=%q snaps=%d, want newer/2", name, snaps)
+	}
+	if n := edgeHistoryLen(); n != 2 {
+		t.Fatalf("after v3: edge snaps=%d, want 2", n)
+	}
+}
