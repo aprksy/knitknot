@@ -159,7 +159,7 @@ Demo summary also lives in [demo/README.md](../../../demo/README.md).
 
 Labels and edge kinds come from `extensions/cti/vocabulary.go` (11 labels, 8 edge kinds).
 
-**Identity:** `stix_id` is the stable key — re-importing the same STIX `id` merges into the same node/edge instead of duplicating. Versions coexist: `(created, modified)` distinguish them and history keeps each snapshot, so an update is a merge + a new history entry, never a silent overwrite.
+**Identity:** `stix_id` is the stable key — re-importing the same STIX `id` merges into the same node/edge instead of duplicating. Versions coexist: `(created, modified)` distinguish them and history keeps each snapshot, so an update is a merge + a new history entry, never a silent overwrite. The one exception: re-imports strictly older than the stored snapshot (by `modified`) are skipped — live props stay current, no new snapshot lands, and the skip count is reported on stderr.
 
 ## 6. Common recipes
 
