@@ -86,6 +86,41 @@ func TestImportIdempotent(t *testing.T) {
 	}
 }
 
+func TestImportDuplicateRelMerges(t *testing.T) {
+	dup := `{
+  "type": "bundle",
+  "id": "bundle--66666666-6666-6666-6666-666666666666",
+  "objects": [
+    {"type": "relationship", "spec_version": "2.1", "id": "relationship--77777777-7777-7777-7777-777777777777",
+     "created": "2024-01-02T00:00:00.000Z", "modified": "2024-01-02T00:00:00.000Z",
+     "relationship_type": "indicates", "source_ref": "` + indID + `", "target_ref": "` + malID + `"},
+    {"type": "relationship", "spec_version": "2.1", "id": "relationship--88888888-8888-8888-8888-888888888888",
+     "created": "2024-01-03T00:00:00.000Z", "modified": "2024-01-03T00:00:00.000Z",
+     "relationship_type": "indicates", "source_ref": "` + indID + `", "target_ref": "` + malID + `"},
+    {"type": "indicator", "spec_version": "2.1", "id": "` + indID + `",
+     "created": "2024-01-01T00:00:00.000Z", "modified": "2024-01-01T00:00:00.000Z",
+     "name": "bad domain", "pattern": "[domain-name:value = 'evil.example.com']",
+     "pattern_type": "stix", "valid_from": "2024-01-01T00:00:00.000Z"},
+    {"type": "malware", "spec_version": "2.1", "id": "` + malID + `",
+     "created": "2024-01-01T00:00:00.000Z", "modified": "2024-01-01T00:00:00.000Z",
+     "name": "EvilWare", "is_family": false, "malware_types": ["ransomware"]}
+  ]}`
+	s := inmem.New()
+	imp := cti.NewSTIXImporter()
+	vr := types.NewVerbRegistry()
+	for i := 0; i < 2; i++ {
+		if err := imp.Import(context.Background(), extension.ImportContext{}, s, vr, strings.NewReader(dup)); err != nil {
+			t.Fatalf("import %d: %v", i, err)
+		}
+		if got := len(s.GetAllNodes()); got != 2 {
+			t.Fatalf("import %d: nodes = %d, want 2", i, got)
+		}
+		if got := len(s.GetAllEdges()); got != 1 {
+			t.Fatalf("import %d: edges = %d, want 1 (dup rels merge)", i, got)
+		}
+	}
+}
+
 func TestImportDanglingRefNoPartialMutation(t *testing.T) {
 	s := inmem.New()
 	bad := `{
@@ -231,8 +266,10 @@ func TestExtensionRegisters(t *testing.T) {
 		if !ok {
 			t.Fatalf("verb %q not registered", kind)
 		}
-		if v.MatchOn != "name" || v.TargetLabel == "" {
-			t.Fatalf("verb %q = %+v, want MatchOn=name and non-empty target", kind, v)
+		// uses + attributed-to are multi-target (empty TargetLabel = match any label)
+		multiTarget := kind == "uses" || kind == "attributed-to"
+		if v.MatchOn != "name" || (v.TargetLabel == "" && !multiTarget) {
+			t.Fatalf("verb %q = %+v, want MatchOn=name and (non-empty target or multi-target)", kind, v)
 		}
 	}
 }

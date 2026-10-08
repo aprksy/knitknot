@@ -57,11 +57,14 @@ func init() {
 	ensureDefaultStore()
 }
 
-// store: backend — default gob registration, idempotent under re-entry.
+// store: backend — default gob + bolt registration, idempotent under re-entry.
 var storeOnce sync.Once
 
 func ensureDefaultStore() {
-	storeOnce.Do(func() { portstorage.Register(gobBackend{}) })
+	storeOnce.Do(func() {
+		portstorage.Register(gobBackend{})
+		portstorage.Register(boltBackend{})
+	})
 }
 
 func initConfig() {

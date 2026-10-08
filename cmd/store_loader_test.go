@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/aprksy/knitknot/pkg/graph"
+	"github.com/aprksy/knitknot/pkg/storage/bolt"
 	"github.com/aprksy/knitknot/pkg/storage/inmem"
 )
 
@@ -51,6 +52,22 @@ var _ = Describe("resolveStoreBackend", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(got == engine).To(BeFalse())
 		Expect(got.Storage().GetAllNodes()).To(BeEmpty())
+	})
+
+	It("opens a bolt file via the selector", func() {
+		path := filepath.Join(GinkgoT().TempDir(), "s.db")
+		st, err := bolt.Open(path)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = st.AddNode("Person", map[string]any{"name": "Alice"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(st.Close()).To(Succeed())
+
+		storeFlag = "bolt:" + path
+		engine := graph.NewGraphEngine(inmem.New())
+		got, err := resolveStoreBackend(engine) // store: wire
+		Expect(err).NotTo(HaveOccurred())
+		Expect(got == engine).To(BeFalse())
+		Expect(got.Storage().GetAllNodes()).To(HaveLen(1))
 	})
 
 	It("errors on an unknown scheme", func() {

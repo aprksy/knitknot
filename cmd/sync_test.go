@@ -8,6 +8,7 @@ import (
 
 	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/aprksy/knitknot/pkg/ports/types"
+	"github.com/aprksy/knitknot/pkg/storage/bolt"
 	"github.com/aprksy/knitknot/pkg/storage/inmem"
 )
 
@@ -138,6 +139,38 @@ var _ = Describe("sync command", func() {
 		Expect(findSyncNode(eng, "name", "b-extra-1")).To(BeNil())
 		Expect(findSyncNode(eng, "name", "b-extra-2")).To(BeNil())
 		Expect(eng.Storage().GetAllEdges()).To(BeEmpty())
+	})
+
+	It("syncs gob -> bolt, stamping sync provenance", func() {
+		dir := GinkgoT().TempDir()
+		a := filepath.Join(dir, "a.gob")
+		db := filepath.Join(dir, "b.db")
+		mustWriteGob(a, func(eng *graph.GraphEngine) {
+			x, err := eng.AddNode("person", map[string]any{"name": "a-x"})
+			Expect(err).NotTo(HaveOccurred())
+			y, err := eng.AddNode("person", map[string]any{"name": "a-y"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(eng.AddEdge(x, y, "knows", map[string]any{"since": "2024"})).To(Succeed())
+		})
+
+		Expect(runSyncCmd("--from", "gob:"+a, "--to", "bolt:"+db)).To(Succeed())
+
+		st, err := bolt.Open(db)
+		Expect(err).NotTo(HaveOccurred())
+		defer st.Close()
+		Expect(st.GetAllNodes()).To(HaveLen(2))
+		Expect(st.GetAllEdges()).To(HaveLen(1))
+		var names []string
+		for _, n := range st.GetAllNodes() {
+			names = append(names, n.Props["name"].(string))
+		}
+		Expect(names).To(ConsistOf("a-x", "a-y"))
+		evs := st.GetEvents(1, 0)
+		Expect(evs).To(HaveLen(3))
+		for _, ev := range evs {
+			Expect(ev.Source).To(Equal("sync"))
+			Expect(ev.Transaction).NotTo(BeEmpty())
+		}
 	})
 
 	It("errors honestly on cross-scheme pairs", func() {

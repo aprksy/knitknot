@@ -60,7 +60,11 @@ func execListVerbs(engine *graph.GraphEngine, out io.Writer) error {
 		if prop == "" {
 			prop = "(any)"
 		}
-		fmt.Fprintf(out, "%-*s → %s.%s\n", maxName, name, v.TargetLabel, prop)
+		target := v.TargetLabel
+		if target == "" {
+			target = "(any)"
+		}
+		fmt.Fprintf(out, "%-*s → %s.%s\n", maxName, name, target, prop)
 	}
 	return nil
 }

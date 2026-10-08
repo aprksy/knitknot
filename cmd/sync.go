@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/aprksy/knitknot/pkg/ports/storage"
 	"github.com/aprksy/knitknot/pkg/ports/types"
 )
@@ -34,11 +35,48 @@ func newSyncCmd() *cobra.Command {
 			return runSync(fromURI, toURI, prune)
 		},
 	}
-	c.Flags().String("from", "", "Source store URI (e.g. gob:file.gob)")
-	c.Flags().String("to", "", "Destination store URI (e.g. gob:other.gob)")
+	c.Flags().String("from", "", "Source store URI (e.g. gob:file.gob, bolt:graph.db)")
+	c.Flags().String("to", "", "Destination store URI (e.g. gob:other.gob, bolt:other.db)")
 	c.Flags().Bool("prune", false, "Delete nodes/edges in --to absent from --from")
 	c.SilenceUsage = true
 	return c
+}
+
+// store: sync — endpoint schemes with a loader below; anything else names
+// honestly in the pair error (checked before Resolve so the message, not the
+// unknown-scheme error, wins).
+func syncSupportedScheme(scheme string) bool { return scheme == "gob" || scheme == "bolt" }
+
+// store: sync — open one endpoint. Gob rides LoadGraph/SaveGraph (verb
+// registries included); bolt opens the DB directly (verbs don't persist on
+// bolt yet, so from-bolt merges none) and returns a Close func — bbolt
+// holds an flock, so endpoints must close before anyone reopens the file.
+// Bolt is already durable: no save step on the write side.
+func openSyncEndpoint(scheme, path string) (*graph.GraphEngine, func(), error) {
+	if scheme == "bolt" {
+		se, err := boltBackend{}.Open(path)
+		if err != nil {
+			return nil, nil, err
+		}
+		closeFn := func() {
+			if c, ok := se.(interface{ Close() error }); ok {
+				_ = c.Close()
+			}
+		}
+		eng := graph.NewGraphEngine(se)
+		if err := wireExtensionVerbs(eng); err != nil {
+			closeFn()
+			return nil, nil, err
+		}
+		return eng, closeFn, nil
+	}
+	// gobBackend.Open(path) is LoadGraph(path).Storage(), so load via
+	// LoadGraph to also retain the verb registries Open drops.
+	eng, err := LoadGraph(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return eng, func() {}, nil
 }
 
 // store: sync — bare paths default to gob: (matching -f behavior); URIs keep
@@ -53,28 +91,28 @@ func parseSyncURI(uri string) (scheme, path string) {
 func runSync(fromURI, toURI string, prune bool) error {
 	fromScheme, fromPath := parseSyncURI(fromURI)
 	toScheme, toPath := parseSyncURI(toURI)
-	if fromScheme != "gob" || toScheme != "gob" {
+	if !syncSupportedScheme(fromScheme) || !syncSupportedScheme(toScheme) {
 		return fmt.Errorf("sync not implemented for %s -> %s yet", fromScheme, toScheme)
 	}
 	ensureDefaultStore()
 	sel := storage.Default()
-	// store: sync — resolve through the selector (validates registration);
-	// gobBackend.Open(path) is LoadGraph(path).Storage(), so load via
-	// LoadGraph to also retain the verb registries Open drops.
+	// store: sync — resolve through the selector (validates registration).
 	if _, err := sel.Resolve(fromScheme + ":" + fromPath); err != nil {
 		return err
 	}
 	if _, err := sel.Resolve(toScheme + ":" + toPath); err != nil {
 		return err
 	}
-	fromEngine, err := LoadGraph(fromPath)
+	fromEngine, fromClose, err := openSyncEndpoint(fromScheme, fromPath)
 	if err != nil {
 		return err
 	}
-	toEngine, err := LoadGraph(toPath)
+	defer fromClose()
+	toEngine, toClose, err := openSyncEndpoint(toScheme, toPath)
 	if err != nil {
 		return err
 	}
+	defer toClose()
 	fromSE, toSE := fromEngine.Storage(), toEngine.Storage()
 
 	// Pass 1: snapshot source, validate every edge endpoint against the
@@ -100,16 +138,23 @@ func runSync(fromURI, toURI string, prune bool) error {
 	// Pass 2: upsert nodes by stable ID (node.ID is the storage-assigned
 	// canonical key); new nodes get fresh IDs tracked in idMap so edges
 	// remap onto them. Source props win on conflict.
+	// ID upsert presumes a shared ID space (true gob→gob, false across
+	// backends). A dest that starts empty shares nothing with the source,
+	// so every source row is new: skip the lookup, else freshly minted
+	// dest IDs false-hit not-yet-synced source IDs and merge wrong entities.
+	destFresh := len(toSE.GetAllNodes()) == 0 && len(toSE.GetAllEdges()) == 0
 	idMap := make(map[string]string, len(srcNodes))
 	for _, sn := range srcNodes {
-		if existing, ok := toSE.GetNode(sn.ID); ok {
-			if merged := syncMergeProps(existing.Props, sn.Props); !reflect.DeepEqual(existing.Props, merged) {
-				if err := updateNodeSync(toSE, existing.ID, merged, tx); err != nil {
-					return fmt.Errorf("sync: update node %q: %w", sn.ID, err)
+		if !destFresh {
+			if existing, ok := toSE.GetNode(sn.ID); ok {
+				if merged := syncMergeProps(existing.Props, sn.Props); !reflect.DeepEqual(existing.Props, merged) {
+					if err := updateNodeSync(toSE, existing.ID, merged, tx); err != nil {
+						return fmt.Errorf("sync: update node %q: %w", sn.ID, err)
+					}
 				}
+				idMap[sn.ID] = existing.ID
+				continue
 			}
-			idMap[sn.ID] = existing.ID
-			continue
 		}
 		newID, err := addNodeSync(toSE, sn.Label, sn.Props, tx)
 		if err != nil {
@@ -168,7 +213,10 @@ func runSync(fromURI, toURI string, prune bool) error {
 			}
 		}
 	}
-	return SaveGraph(toEngine, toPath)
+	if toScheme == "gob" {
+		return SaveGraph(toEngine, toPath)
+	}
+	return nil // bolt destination is durable on write
 }
 
 // store: sync — optional versioned write path carrying source/transaction;

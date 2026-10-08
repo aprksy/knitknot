@@ -87,7 +87,6 @@ func (s *Storage) AddNodeWithMeta(label string, props map[string]any, source, tr
 		Op:          "create",
 		ElementType: "node",
 		ElementID:   id,
-		Props:       copyMap(props),
 		Source:      source,
 		Transaction: tx,
 	})
@@ -165,7 +164,6 @@ func (s *Storage) AddEdgeWithMeta(from, to, kind string, props map[string]any, s
 		From:        from,
 		To:          to,
 		Kind:        kind,
-		Props:       copyMap(props),
 		Source:      source,
 		Transaction: tx,
 	})
@@ -327,7 +325,6 @@ func (s *Storage) UpdateNodeWithMeta(id string, props map[string]any, source, tr
 		Op:          "update",
 		ElementType: "node",
 		ElementID:   id,
-		Props:       copyMap(props),
 		Source:      source,
 		Transaction: tx,
 	})
@@ -374,7 +371,6 @@ func (s *Storage) UpdateEdgeWithMeta(id string, props map[string]any, source, tr
 		From:        edge.From,
 		To:          edge.To,
 		Kind:        edge.Kind,
-		Props:       copyMap(props),
 		Source:      source,
 		Transaction: tx,
 	})
@@ -487,7 +483,6 @@ func (s *Storage) DeleteNodeWithMeta(id, source, transaction string) error {
 		Op:          "delete",
 		ElementType: "node",
 		ElementID:   id,
-		Props:       copyMap(n.Props),
 		Source:      source,
 		Transaction: tx,
 	})
@@ -531,7 +526,6 @@ func (s *Storage) DeleteNodeWithMeta(id, source, transaction string) error {
 				From:        e.From,
 				To:          e.To,
 				Kind:        e.Kind,
-				Props:       copyMap(e.Props),
 				Source:      source,
 				Transaction: tx,
 			})
@@ -584,7 +578,6 @@ func (s *Storage) DeleteEdgeWithMeta(from, to, kind, source, transaction string)
 		From:        e.From,
 		To:          e.To,
 		Kind:        e.Kind,
-		Props:       copyMap(e.Props),
 		Source:      source,
 		Transaction: tx,
 	})

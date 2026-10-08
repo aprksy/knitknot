@@ -22,10 +22,10 @@ var ctiVerbs = []struct { // ext: cti-ext
 	kind   string // ext: cti-ext
 	target string // ext: cti-ext
 }{ // ext: cti-ext
-	{EdgeUses, LabelMalware},                    // ext: cti-ext
+	{EdgeUses, ""},                                  // ext: cti-ext — multi-target: malware, attack-pattern, tool, … (empty = match any label)
 	{EdgeTargets, LabelVulnerability},           // ext: cti-ext: targets points at vulnerabilities, not identities
 	{EdgeIndicates, LabelMalware},               // ext: cti-ext
-	{EdgeAttributedTo, LabelThreatActor},        // ext: cti-ext
+	{EdgeAttributedTo, ""},                      // ext: cti-ext — multi-target: intrusion-set, identity (empty = match any label)
 	{EdgeCommunicatesWith, LabelInfrastructure}, // ext: cti-ext
 	{EdgeBasedOn, LabelObservable},              // ext: cti-ext
 	{EdgeDerivedFrom, LabelObservable},          // ext: cti-ext

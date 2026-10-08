@@ -110,14 +110,29 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 
 	// Pass 2: upsert nodes, then resolve and upsert relationships. // ext: cti-import
 	// ponytail: single-writer lookup-before-add; needs a unique index for concurrent/large feeds.
+	// perf: preload stixID->node once per involved label; the old per-node
+	// label-bucket scan was O(nodes*bucket) and never hit on fresh import.
+	labels := make(map[string]struct{}, 8) // ext: cti-import
+	for _, n := range nodes {              // ext: cti-import
+		labels[n.label] = struct{}{} // ext: cti-import
+	} // ext: cti-import
+	known := make(map[string]*types.Node, len(nodes)) // ext: cti-import
+	for label := range labels {                       // ext: cti-import
+		for _, n := range s.GetNodesByLabel(label) { // ext: cti-import
+			if sid, _ := n.Props[StixID].(string); sid != "" { // ext: cti-import
+				known[sid] = n // ext: cti-import
+			} // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
 	ids := make(map[string]string, len(nodes)) // ext: cti-import
+	pass2 := func() error { // ext: cti-import
 	for i, n := range nodes {                  // ext: cti-import
 		if i%64 == 0 { // ext: cti-import
 			if err := ctx.Err(); err != nil { // ext: cti-import
 				return err // ext: cti-import
 			} // ext: cti-import
 		} // ext: cti-import
-		if existing := findNodeByLabel(s, n.label, n.stixID); existing != nil { // ext: cti-import
+		if existing, ok := known[n.stixID]; ok { // ext: cti-import
 			if err := updateNodeSrc(s, existing.ID, mergeProps(existing.Props, n.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 				return fmt.Errorf("cti: update node %q: %w", n.stixID, err) // ext: cti-import
 			} // ext: cti-import
@@ -128,9 +143,16 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 		if err != nil {                                                        // ext: cti-import
 			return fmt.Errorf("cti: add node %q: %w", n.stixID, err) // ext: cti-import
 		} // ext: cti-import
-		ids[n.stixID] = gid // ext: cti-import
+		ids[n.stixID] = gid                  // ext: cti-import
+		if fresh, ok := s.GetNode(gid); ok { // ext: cti-import
+			known[n.stixID] = fresh // ext: cti-import — dup stixIDs in one bundle merge
+		} // ext: cti-import
 	} // ext: cti-import
-	for i, rel := range rels { // ext: cti-import
+	// perf: seen-set for edges added this import + one GetEdgesFrom per
+	// from-node; the old per-relationship scan was quadratic on hub nodes.
+	seen := make(map[string]string, len(rels))           // ext: cti-import — from|to|kind -> edge ID
+	fromCache := make(map[string]map[string]*types.Edge) // ext: cti-import — from -> to|kind -> edge
+	for i, rel := range rels {                           // ext: cti-import
 		if i%64 == 0 { // ext: cti-import
 			if err := ctx.Err(); err != nil { // ext: cti-import
 				return err // ext: cti-import
@@ -138,33 +160,63 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 		} // ext: cti-import
 		from := ids[rel.fromRef] // ext: cti-import
 		if from == "" {          // ext: cti-import
-			from = findGraphID(s, rel.fromRef) // ext: cti-import
+			from = resolveGraphID(s, known, rel.fromRef) // ext: cti-import
 		} // ext: cti-import
 		to := ids[rel.toRef] // ext: cti-import
 		if to == "" {        // ext: cti-import
-			to = findGraphID(s, rel.toRef) // ext: cti-import
+			to = resolveGraphID(s, known, rel.toRef) // ext: cti-import
 		} // ext: cti-import
 		if from == "" || to == "" { // ext: cti-import
 			return fmt.Errorf("cti: relationship %q has unresolvable endpoint", rel.stixID) // ext: cti-import
 		} // ext: cti-import
-		var found *types.Edge                    // ext: cti-import
-		for _, e := range s.GetEdgesFrom(from) { // ext: cti-import
-			if e.To == to && e.Kind == rel.kind { // ext: cti-import
-				found = e // ext: cti-import
-				break     // ext: cti-import
+		key := from + "\x00" + to + "\x00" + rel.kind // ext: cti-import
+		if eid, ok := seen[key]; ok {                 // ext: cti-import — dup in this import
+			if e, ok := s.GetEdge(eid); ok { // ext: cti-import
+				if err := updateEdgeSrc(s, e.ID, mergeProps(e.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
+					return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
+				} // ext: cti-import
+				continue // ext: cti-import
 			} // ext: cti-import
 		} // ext: cti-import
-		if found != nil { // ext: cti-import
+		bucket, ok := fromCache[from] // ext: cti-import
+		if !ok {                      // ext: cti-import
+			bucket = make(map[string]*types.Edge)    // ext: cti-import
+			for _, e := range s.GetEdgesFrom(from) { // ext: cti-import
+				bucket[e.To+"\x00"+e.Kind] = e // ext: cti-import
+			} // ext: cti-import
+			fromCache[from] = bucket // ext: cti-import
+		} // ext: cti-import
+		if found, ok := bucket[to+"\x00"+rel.kind]; ok { // ext: cti-import
 			if err := updateEdgeSrc(s, found.ID, mergeProps(found.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 				return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
 			} // ext: cti-import
-			continue // ext: cti-import
+			seen[key] = found.ID // ext: cti-import
+			continue             // ext: cti-import
 		} // ext: cti-import
 		if err := addEdgeSrc(s, from, to, rel.kind, rel.props, ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 			return fmt.Errorf("cti: add edge %q: %w", rel.stixID, err) // ext: cti-import
 		} // ext: cti-import
+		// perf: resolve the real edge (O(1) on deterministic IDs, one scan
+		// fallback otherwise) so later dups hit seen->GetEdge, not a re-add.
+		if e, ok := s.GetEdge(from + "->" + to + "@" + rel.kind); ok { // ext: cti-import
+			seen[key] = e.ID               // ext: cti-import
+			bucket[to+"\x00"+rel.kind] = e // ext: cti-import
+			continue                       // ext: cti-import
+		} // ext: cti-import
+		for _, e := range s.GetEdgesFrom(from) { // ext: cti-import — non-deterministic backend fallback
+			if e.To == to && e.Kind == rel.kind { // ext: cti-import
+				seen[key] = e.ID               // ext: cti-import
+				bucket[to+"\x00"+rel.kind] = e // ext: cti-import
+				break                          // ext: cti-import
+			} // ext: cti-import
+		} // ext: cti-import
 	} // ext: cti-import
 	return nil // ext: cti-import
+	} // ext: cti-import
+	if bs, ok := s.(batchStore); ok { // ext: cti-import
+		return bs.Batch(pass2) // ext: cti-import
+	} // ext: cti-import
+	return pass2() // ext: cti-import
 } // ext: cti-import
 
 // graphProps flattens a STIX object to generic node/edge props via its JSON // ext: cti-import
@@ -184,6 +236,10 @@ func graphProps(obj stix2.STIXObject, source string) (map[string]any, error) { /
 	props[SourceFeed] = source                                // ext: cti-import // ext: source-feed
 	props[ImportedAt] = time.Now().UTC().Format(time.RFC3339) // ext: cti-import
 	return props, nil                                         // ext: cti-import
+} // ext: cti-import
+
+type batchStore interface { // ext: cti-import
+	Batch(fn func() error) error // ext: cti-import
 } // ext: cti-import
 
 // metaStore is the optional versioning write path carrying source/transaction. // ext: source-feed
@@ -223,14 +279,14 @@ func updateEdgeSrc(s storage.StorageEngine, id string, props map[string]any, sou
 	return s.UpdateEdge(id, props) // ext: source-feed
 } // ext: source-feed
 
-// findNodeByLabel returns the node with label carrying stixID, or nil. // ext: cti-import
-func findNodeByLabel(s storage.StorageEngine, label, stixID string) *types.Node { // ext: cti-import
-	for _, n := range s.GetNodesByLabel(label) { // ext: cti-import
-		if v, _ := n.Props[StixID].(string); v == stixID { // ext: cti-import
-			return n // ext: cti-import
-		} // ext: cti-import
+// resolveGraphID maps a STIX ID to its graph ID via the Pass 2 preload,
+// falling back to a full scan for pre-existing nodes whose label was not
+// part of this import. // ext: cti-import
+func resolveGraphID(s storage.StorageEngine, known map[string]*types.Node, stixID string) string { // ext: cti-import
+	if n, ok := known[stixID]; ok { // ext: cti-import
+		return n.ID // ext: cti-import
 	} // ext: cti-import
-	return nil // ext: cti-import
+	return findGraphID(s, stixID) // ext: cti-import
 } // ext: cti-import
 
 // findGraphID scans all nodes for stixID and returns its graph ID, or "". // ext: cti-import

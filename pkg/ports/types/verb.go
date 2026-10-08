@@ -2,7 +2,8 @@ package types
 
 // Verb defines the meaning of a relationship type (edge kind)
 type Verb struct {
-	// TargetLabel is the expected label of the destination node
+	// TargetLabel is the expected label of the destination node.
+	// Empty means multi-target: match any label (the MatchOn filter still applies).
 	TargetLabel string
 
 	// MatchOn is the property key used in .Has(rel, value) filtering

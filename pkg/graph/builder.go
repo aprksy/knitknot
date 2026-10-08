@@ -61,15 +61,14 @@ func (b *Builder) Has(rel, value string) *Builder {
 	verb, ok := b.engine.verbs.Lookup(rel)
 	if !ok {
 		verb = types.Verb{
-			TargetLabel: "Entity",
+			TargetLabel: "", // match any label; MatchOn still applies
 			MatchOn:     types.DefaultMatchProperty,
 		}
 	}
 
 	targetLabel := verb.TargetLabel
-	if targetLabel == "" {
-		targetLabel = "Entity"
-	}
+	// NOTE: empty TargetLabel (multi-target verbs, unknown verbs) means no
+	// label constraint — the MatchOn property filter still applies.
 
 	propKey := verb.MatchOn
 	if propKey == "" {
