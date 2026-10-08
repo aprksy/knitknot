@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aprksy/knitknot/extensions/dfir"
+	"github.com/aprksy/knitknot/pkg/graph"
+	"github.com/aprksy/knitknot/pkg/storage/inmem"
 )
 
 var correlateCmd = &cobra.Command{
@@ -20,11 +22,15 @@ var correlateCmd = &cobra.Command{
 var correlateFlags struct {
 	observables string
 	format      string
+	workspace   string
+	source      string
 }
 
 func init() {
 	correlateCmd.Flags().StringVarP(&correlateFlags.observables, "observables", "O", "", "Case observables CSV file (type,value[,context])")
 	correlateCmd.Flags().StringVar(&correlateFlags.format, "format", "text", "Output format (text, json)")
+	correlateCmd.Flags().StringVar(&correlateFlags.workspace, "workspace", "", "Write a projected case workspace graph to this .gob file")
+	correlateCmd.Flags().StringVar(&correlateFlags.source, "source", "case", "source_feed recorded on case observable nodes")
 	RootCmd.AddCommand(correlateCmd)
 }
 
@@ -53,6 +59,22 @@ func runCorrelate(cmd *cobra.Command, args []string) error {
 	}
 
 	matches := dfir.Correlate(engine.Storage(), caseObs)
+
+	if correlateFlags.workspace != "" {
+		wsEngine := graph.NewGraphEngine(inmem.New())
+		if err := wireExtensionVerbs(wsEngine); err != nil {
+			return err
+		}
+		stats, err := dfir.BuildWorkspace(engine.Storage(), wsEngine.Storage(), caseObs, correlateFlags.source)
+		if err != nil {
+			return err
+		}
+		if err := SaveGraph(wsEngine, correlateFlags.workspace); err != nil {
+			return err
+		}
+		fmt.Printf("Workspace: %d observables, %d indicators, %d malware, %d campaigns, %d actors, %d ttps, %d edges\n",
+			stats.Observables, stats.Indicators, stats.Malware, stats.Campaigns, stats.Actors, stats.TTPs, stats.Edges)
+	}
 
 	switch correlateFlags.format {
 	case "text":
