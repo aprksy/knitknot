@@ -37,9 +37,14 @@ Covered by `extensions/dfir/*_test.go`:
 - **Canonical matching** — domains lowercased with one trailing dot
   stripped; hashes lowercased; exact match thereafter.
 - **Workspace projection** — `--workspace` writes a thin, self-contained
-  `.gob`: observable nodes (`label=observable`), matched indicators, the
-  reachable context, and the inducing/context edges. Source graph is never
-  mutated; `based-on` links make `Has('based-on', <value>)` resolve.
+  graph (`.gob` path or `bolt:<path>`): observable nodes
+  (`label=observable`), matched indicators, the reachable context, and the
+  inducing/context edges. Source graph is never mutated; `based-on` links
+  make `Has('based-on', <value>)` resolve.
+- **Full observable layer** — `--all-observables` materializes observables
+  for *every* observable-bearing indicator, not just matched ones (opt-in;
+  deduped by `Observable.Key()`), so the layer can be exported and
+  cluster-analyzed.
 - **Downstream tooling** — a workspace queries like any graph and exports
   to Parquet (and STIX for the nodes carrying `stix_id`).
 
@@ -71,10 +76,6 @@ expressed in indicator patterns will not match.
 Matching is exact after canonicalization. No substring, fuzzy, or
 wildcard matching; no hash-prefix matching.
 
-### Workspace output is `.gob` only
-
-`--workspace` writes a `.gob`. There is no `bolt:` workspace output yet.
-
 ### Single case per workspace
 
 Multiple cases are not separated beyond `source_feed`. Building two cases
@@ -104,16 +105,11 @@ inherits filesystem protections and nothing more.
 
 ## Continuity — open items
 
-1. **Workspace `bolt:` output** — `--workspace` is `.gob` only; honor the
-   store scheme for consistency with the main backend.
-2. **Full observable-layer materialization** — optionally materialize
-   observables for *all* indicators (browsable layer, cluster-analysis
-   input), not only matched ones.
-3. **Multi-case separation** — first-class per-case tagging beyond
+1. **Multi-case separation** — first-class per-case tagging beyond
    `source_feed` when more than one case shares a workspace.
-4. **Broader traversal** — include `communicates-with` / `targets` /
+2. **Broader traversal** — include `communicates-with` / `targets` /
    `based-on` context edges if real CTI data shows them mattering.
-5. **SCO-node observables** — consult observables held as standalone SCO
+3. **SCO-node observables** — consult observables held as standalone SCO
    nodes, not just indicator patterns.
 
 ---

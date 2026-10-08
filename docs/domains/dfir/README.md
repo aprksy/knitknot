@@ -161,10 +161,10 @@ as TLP-handling or evidence-grade chain-of-custody.
 ## Delivery stages
 
 1. **Shipped:** extractor, read-side correlation, CLI report. *(committed)*
-2. **Shipped:** workspace projection, `--workspace`. *(committed)*
-3. Optional: `bolt:` workspace output; full observable-layer materialization
-   (not only matched); multi-case separation within one workspace.
-4. Optional: cross-graph correlation without projection.
+2. **Shipped:** workspace projection, `--workspace` (`.gob` or `bolt:`). *(committed)*
+3. **Shipped:** full observable-layer materialization (`--all-observables`). *(committed)*
+4. Optional: multi-case separation; broader traversal; cross-graph
+   correlation without projection.
 
 ## Definition of done
 
@@ -177,8 +177,5 @@ as TLP-handling or evidence-grade chain-of-custody.
 
 ## Open decisions
 
-- Whether the observable layer should be materialized for **all** indicators
-  (browsable, cluster-analysis input) or only matched ones (current).
-- Whether case workspaces should support `bolt:` output like the main store.
 - Whether multiple cases in one workspace need first-class separation beyond
   `source_feed`.

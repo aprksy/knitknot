@@ -103,6 +103,21 @@ This writes a thin, self-contained graph containing:
 
 The source graph (`th.gob`) is never modified.
 
+**Full observable layer.** By default only matched observables are
+materialized. To materialize observables for **every** indicator (a
+browsable layer to cluster-analyze), add `--all-observables`:
+
+```bash
+knitknot correlate --observables case.csv -f th.gob --workspace layer.gob --all-observables
+```
+
+**Durable workspace.** `--workspace` accepts a store URI; use `bolt:` for
+a single-file durable database instead of `.gob`:
+
+```bash
+knitknot correlate --observables case.csv -f th.gob --workspace bolt:case.db
+```
+
 Query it like any graph:
 
 ```bash
@@ -134,7 +149,6 @@ G = nx.from_pandas_edgelist(edges, "from_stix_id", "to_stix_id", "kind")
 - **Only the main chain is walked** (`indicates` / `uses` / `attributed-to`);
   `communicates-with` / `targets` are ignored.
 - **Exact match only** — no fuzzy/substring matching.
-- **Workspace is `.gob` only**; no `bolt:` output yet.
 
 ## Where to go next
 
