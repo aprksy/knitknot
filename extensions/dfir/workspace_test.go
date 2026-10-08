@@ -35,7 +35,7 @@ func TestBuildWorkspaceProjection(t *testing.T) {
 		{Observable: Observable{Type: "domain", Value: "tutorial-c2.example.com"}, Context: "proxy log"},
 	}
 	dst := inmem.New()
-	stats, err := BuildWorkspace(src, dst, caseObs, "case")
+	stats, err := BuildWorkspace(src, dst, caseObs, WorkspaceOptions{CaseSource: "case"})
 	if err != nil {
 		t.Fatalf("BuildWorkspace: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestBuildWorkspaceDedup(t *testing.T) {
 		{Observable: Observable{Type: "domain", Value: "Tutorial-C2.EXAMPLE.com."}, Context: "dns"},
 		{Observable: Observable{Type: "file-hash-sha256", Value: "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"}},
 	}
-	stats, err := BuildWorkspace(src, dst, caseObs, "case")
+	stats, err := BuildWorkspace(src, dst, caseObs, WorkspaceOptions{CaseSource: "case"})
 	if err != nil {
 		t.Fatalf("BuildWorkspace: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestBuildWorkspaceHasBasedOn(t *testing.T) {
 		{Observable: Observable{Type: "domain", Value: "tutorial-c2.example.com"}},
 		{Observable: Observable{Type: "file-hash-sha256", Value: "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"}},
 	}
-	if _, err := BuildWorkspace(src, dst, caseObs, "case"); err != nil {
+	if _, err := BuildWorkspace(src, dst, caseObs, WorkspaceOptions{CaseSource: "case"}); err != nil {
 		t.Fatalf("BuildWorkspace: %v", err)
 	}
 
@@ -189,7 +189,7 @@ func TestBuildWorkspaceNoMatch(t *testing.T) {
 	dst := inmem.New()
 	stats, err := BuildWorkspace(src, dst, []CaseObservable{
 		{Observable: Observable{Type: "ipv4", Value: "203.0.113.9"}},
-	}, "case")
+	}, WorkspaceOptions{CaseSource: "case"})
 	if err != nil {
 		t.Fatalf("BuildWorkspace: %v", err)
 	}
@@ -198,5 +198,68 @@ func TestBuildWorkspaceNoMatch(t *testing.T) {
 	}
 	if got := len(dst.GetAllNodes()); got != 0 {
 		t.Errorf("dst nodes = %d, want 0", got)
+	}
+}
+
+func TestBuildWorkspaceAllObservables(t *testing.T) {
+	src := seedCorrelateGraph(t)
+	// An indicator with no supported observable stays out of the layer.
+	if _, err := src.AddNode("indicator", map[string]any{
+		"name": "Weird", "pattern": "[file:name LIKE 'x%']",
+		"stix_id": "indicator--99999999-9999-9999-9999-999999999999",
+	}); err != nil {
+		t.Fatalf("add weird indicator: %v", err)
+	}
+	wantNodes, wantEdges := len(src.GetAllNodes()), len(src.GetAllEdges())
+
+	// Case matches the domain only; the hash layer comes from AllObservables.
+	dst := inmem.New()
+	stats, err := BuildWorkspace(src, dst, []CaseObservable{
+		{Observable: Observable{Type: "domain", Value: "tutorial-c2.example.com"}},
+	}, WorkspaceOptions{CaseSource: "case", AllObservables: true})
+	if err != nil {
+		t.Fatalf("BuildWorkspace: %v", err)
+	}
+	if got, want := stats, (WorkspaceStats{Observables: 2, Indicators: 2, Malware: 1, Campaigns: 1, Actors: 1, TTPs: 1, Edges: 7}); stats != want {
+		t.Errorf("stats = %+v, want %+v", got, want)
+	}
+
+	// Both observable-bearing indicators present with both observables.
+	if got := len(dst.GetNodesByLabel(cti.LabelIndicator)); got != 2 {
+		t.Errorf("indicators = %d, want 2", got)
+	}
+	if got := len(dst.GetNodesByLabel(cti.LabelObservable)); got != 2 {
+		t.Errorf("observables = %d, want 2", got)
+	}
+	for _, n := range dst.GetAllNodes() {
+		if name, _ := n.Props["name"].(string); name == "Weird" {
+			t.Errorf("observable-less indicator copied into dst: %v", n.ID)
+		}
+	}
+
+	// Every based-on edge resolves on both ends (non-dangling).
+	based := 0
+	for _, e := range dst.GetAllEdges() {
+		if e.Kind != cti.EdgeBasedOn {
+			continue
+		}
+		based++
+		if _, ok := dst.GetNode(e.From); !ok {
+			t.Errorf("based-on edge %v dangles at from", e)
+		}
+		if _, ok := dst.GetNode(e.To); !ok {
+			t.Errorf("based-on edge %v dangles at to", e)
+		}
+	}
+	if based != 2 {
+		t.Errorf("based-on edges = %d, want 2", based)
+	}
+
+	// src untouched.
+	if got := len(src.GetAllNodes()); got != wantNodes {
+		t.Errorf("src nodes = %d, want %d (mutated)", got, wantNodes)
+	}
+	if got := len(src.GetAllEdges()); got != wantEdges {
+		t.Errorf("src edges = %d, want %d (mutated)", got, wantEdges)
 	}
 }
