@@ -2,7 +2,7 @@
 
 > **Living document.** A point-in-time snapshot of what users can rely on
 > from the Threat Intelligence extension in this build. Updated as the
-> extension changes. Last updated: 2026-09-23.
+> extension changes. Last updated: 2026-10-08.
 >
 > Design intent lives in [README.md](README.md). This file describes
 > behavior as it is. If a statement here disagrees with reality, reality
@@ -13,6 +13,12 @@ queryable through the existing DSL, REPL, and exporters.
 
 What's new since Stage 1: the graph kernel now preserves append-only
 version history across re-imports (ADR 0002) — see "Version history" below.
+
+`[updated 2026-10-08]` Since the last revision the CLI grew an enterprise
+path: a durable BoltDB backend with batched imports (ADR 0003), Parquet and
+query-scoped exports for the Jupyter handoff, a stale-re-import guard, and
+measured import/query performance. Open work is tracked in
+"Continuity — open items" at the end of this file.
 
 ---
 
@@ -49,6 +55,26 @@ These behaviors are covered by `extensions/cti/*_test.go` and the
   like any other verbs.
 - **Downstream tooling** — imported graphs query, export to DOT/SVG/JSON,
   and save to `.gob` like any other graph.
+- **Durable BoltDB backend** `[updated 2026-10-08]` — `--store bolt:<file.db>`
+  stores the graph in a single-file B+tree DB with indexes, so queries no
+  longer decode the whole graph (ADR 0003). `sync gob:<in> bolt:<out>`
+  migrates an existing `.gob`; batched writes collapse imports into one
+  transaction.
+- **Parquet + query-scoped export** `[updated 2026-10-08]` —
+  `export --format parquet -o <prefix>` writes `<prefix>_nodes.parquet` +
+  `<prefix>_edges.parquet` for Jupyter/pandas; `export --format stix
+  --query "<dsl>"` emits only the matching subgraph as a focused STIX
+  bundle (the "hypothesis → focused bundle" workflow).
+- **Stale re-import guard** `[updated 2026-10-08]` — a re-import strictly
+  older than the stored snapshot (by STIX `modified`) is skipped: live
+  props stay current, no snapshot is appended, and the count is reported on
+  stderr. Equal or unparseable timestamps keep the old merge behavior.
+- **Multi-target verbs** `[updated 2026-10-08]` — `uses` and
+  `attributed-to` match across node labels (malware, attack-patterns,
+  intrusion-sets, …), so `Find('malware').Has('uses', '<TTP name>')` and
+  `Find('campaign').Has('attributed-to', '<actor>')` work.
+- **Measured performance** `[updated 2026-10-08]` — see "Analyst-sized
+  only" for the numbers.
 
 ---
 
@@ -68,6 +94,12 @@ history access. Kernel primitives exist: `GetNodeAt(id, t)` /
 (`.AsOf('2024-04-01')`) — "what did the graph look like on date X" is
 only queryable via the kernel primitives directly, not through the
 parser yet.
+
+`[updated 2026-10-08]` Re-imports are now ordered by STIX `modified`: a
+bundle strictly older than the stored snapshot is skipped (live props and
+history unchanged, count on stderr). Equal timestamps still merge, and an
+identical re-import still appends a snapshot — there is no content no-op
+detection.
 
 ### STIX export
 
@@ -108,18 +140,35 @@ rule as the core lib.
 
 `Has()` is outgoing-only with a required match value; no bounded multi-hop,
 no "follow `uses` with no predicate." CTI-shaped questions needing raw
-traversal wait on the graph-layer work.
+traversal wait on the graph-layer work. `Where()` supports only `=`, `!=`,
+`>`, `<` — there is no `contains`/regex, and `>`/`<` coerce numbers only,
+so **date-range filters do not work** (`Where('n.valid_from', '>', '2024-…')`
+matches nothing; verified). Exact timestamps with `=` work; for ranges,
+export and filter downstream.
 
 ### Always pass `-f`
 
 Without it the import runs, prints success, and evaporates with the
 process. Easiest way for a new user to lose work.
 
-### Analyst-sized only
+### Analyst-sized only `[updated 2026-10-08]`
 
-No ingestion benchmarks; a few thousand objects is comfortable territory,
-tens of thousands is uncharted. No TAXII, no polling, no enrichment — feed
-plumbing is the operator's job.
+Benchmarked on a 4,000-node / 20,565-edge proxy slice of MITRE ATT&CK
+(`gob` / `bolt`, post-fix):
+
+| objects | gob import | bolt import | gob query | bolt query |
+| --- | --- | --- | --- | --- |
+| 1,508 | 0.17 s | 0.55 s | ~0.02 s | ~0.01 s |
+| 24,565 | 7.7 s | 22.9 s | ~4–5 s | 0.014–0.15 s |
+
+Bolt trades slower imports for order-of-magnitude faster queries — the
+right trade for import-once/query-many, which is why it is the recommended
+backend past a few thousand objects. **Not yet verified:** the full
+26,086-object / 52 MB `enterprise-attack.json` never completed on the WSL
+dev host (host crashes, not importer errors); the curve above projects it
+in tens of seconds, but that number is unproven until it runs on a real
+Linux host. No TAXII, no polling, no enrichment — feed plumbing is the
+operator's job.
 
 ---
 
@@ -144,9 +193,44 @@ Dependency added for Stage 1: `github.com/TcM1911/stix2 v0.10.4`
 
 ## Deferred to Stage 2+
 
-Incoming traversal, unique STIX-ID constraints, edge/property indexes,
-durable storage backend, STIX export, marking enforcement, TAXII,
-point-in-time queries. None block the current importer.
+`[updated 2026-10-08]` Shipped since this list was written: durable storage
+backend (BoltDB, ADR 0003), edge/property indexes (inmem + bolt), STIX
+export, and Parquet/query-scoped export.
+
+Still open: incoming traversal, unique STIX-ID constraints enforced at the
+store layer, marking enforcement, TAXII, point-in-time queries (`.AsOf`),
+and the DSL date/`contains` operators noted above. None block the current
+importer.
+
+---
+
+## Continuity — open items `[added 2026-10-08]`
+
+Ordered by what to pick up first. Everything above is shipped and tested;
+this is verification and hardening, not feature work.
+
+1. **Run the full `enterprise-attack.json` import on a real Linux host.**
+   Never completed on WSL (two host crashes at ~400 MB+ RSS). Proxy slice
+   imports fine; the full-file number is the last unproven performance
+   claim. Compare `gob` vs `bolt` and record both.
+2. **Add CI** (GitHub Actions): `go test ./...` on push. Tests are green
+   locally but nothing guards against regressions.
+3. **Exercise Parquet + `--query` export on the bolt backend.** Verified on
+   `gob` only; the code paths are backend-agnostic but untested there.
+4. **Consider `import --strict`** to escalate stale-skip from an stderr
+   line to a non-zero exit, for feed automation that wants to fail loudly.
+5. **Consider no-op re-import detection** (skip appending a snapshot when
+   content is byte-identical) to stop history growing on repeated pulls.
+6. **Cross-backend re-sync assumes a shared ID space** (flagged in the bolt
+   work). One-shot `gob → bolt` migration is exact; repeated re-sync across
+   divergent ID spaces can false-match. Document or guard before relying on
+   it.
+7. **Add an enterprise-scale demo** — the shipped demo covers a 25-object
+   fixture; a pipeline demo (import → DSL → Parquet → networkx) would show
+   the intended Jupyter handoff end to end.
+
+Pre-existing Stage-2 items (marking enforcement, TAXII, `.AsOf`, DSL
+date/`contains` ops) are listed above and unchanged.
 
 ---
 

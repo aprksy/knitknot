@@ -202,6 +202,7 @@ Details in [STATUS.md](STATUS.md).
 ## 8. Where to go next
 
 - Live run: `bash demo/cti-demo.sh` + [demo/README.md](../../../demo/README.md)
+- Tutorials (Jupyter handoff): [TI](../../cti/ti-tutorial.md) · [TH](../../cti/th-tutorial.md) + [overview](../../cti/README.md)
 - Honest limits: [STATUS.md](STATUS.md)
 - Design blueprint: [README.md](README.md)
 - Building your own domain: [docs/domains/README.md](../README.md) (extension rules, admission checklist)

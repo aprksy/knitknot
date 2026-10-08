@@ -48,6 +48,7 @@ dot -Tsvg graph.dot > graph.svg
 - [DSL Syntax Guide](docs/dsl.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Domain Extensions](docs/domains/README.md)
+- [CTI Analysis — TI & TH tutorials](docs/cti/README.md)
 - [Contribute](docs/CONTRIBUTING.md)
 - [Current Status](STATUS.md)
 
