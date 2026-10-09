@@ -47,6 +47,23 @@ Find(label).Has(rel, value).Where(field, op, val).Limit(n)
     Unlike `Has` (which fans out from the `Find` node), `Follow` advances the
     current position along the path. See ADR 0004.
 
+- `Reach(rel, dir, maxDepth)` / `ReachHas(rel, value, dir, maxDepth) `
+
+    Bounded reachability: every node reachable in 1..`maxDepth` hops along
+    `rel` edges (empty `''` = any kind), direction-aware. `maxDepth` defaults
+    to 8 and is capped at 32. `ReachHas` also filters the reached node's
+    `MatchOn` property. The reached node is bound to a **new var** (e.g.
+    `v0`); use `ReachHas` (preferred) or `Where` on that var.
+    ```
+    # nodes 1..2 hops from the actor, either direction
+    Find('intrusion-set').Reach('', 'both', 2)
+
+    # existence: is SomeMalware reachable from the actor within 3 steps?
+    Find('intrusion-set').ReachHas('', 'SomeMalware', 'both', 3)
+    ```
+    Unlike `Follow` (one hop), `Reach` explores up to `maxDepth` hops and is
+    cycle-safe. See ADR 0004.
+
 - `Where(field, op, value) `
 
     Filters based on node properties. 

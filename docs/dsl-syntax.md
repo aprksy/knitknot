@@ -11,6 +11,8 @@ FindMethod  = "Find(" String ")" ;
 ChainableMethod = HasMethod
                 | FollowMethod
                 | FollowHasMethod
+                | ReachMethod
+                | ReachHasMethod
                 | WhereMethod
                 | WhereEdgeMethod
                 | LimitMethod
@@ -18,6 +20,8 @@ ChainableMethod = HasMethod
 HasMethod   = ".Has(" String "," String ")" ;
 FollowMethod = ".Follow(" String [ "," Direction ] ")" ;
 FollowHasMethod = ".FollowHas(" String "," String [ "," Direction ] ")" ;
+ReachMethod = ".Reach(" String [ "," Direction [ "," Number ] ] ")" ;
+ReachHasMethod = ".ReachHas(" String "," String [ "," Direction [ "," Number ] ] ")" ;
 WhereMethod = ".Where(" String "," String "," Value ")" ;
 WhereEdgeMethod = ".WhereEdge(" String "," String "," Value ")" ;
 LimitMethod = ".Limit(" Number ")" ;

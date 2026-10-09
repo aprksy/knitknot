@@ -139,12 +139,15 @@ rule as the core lib.
 ### Querying is the core DSL's querying
 
 `Has()` is outgoing-only, requires a match value, and fans out from the
-`Find` node. `[updated 2026-10-08]` **Fixed-length multi-hop now works** via
-`.Follow(rel, dir)` / `.FollowHas(rel, value, dir)` (ADR 0004, Tier 1): hops
-chain from the previous node and take a direction (`'out'`/`'in'`/`'both'`),
-so `Find('intrusion-set').Follow('attributed-to','in').Follow('uses','out')`
-is one query. Still missing: **bounded variable-length reachability**
-(`.Reach`, ADR 0004 Tier 2) and path enumeration. `Where()` supports only
+`Find` node. `[updated 2026-10-08]` **Multi-hop now works** (ADR 0004):
+`.Follow(rel, dir)` / `.FollowHas(rel, value, dir)` chain fixed-length hops
+from the previous node, and `.Reach(rel, dir, maxDepth)` /
+`.ReachHas(rel, value, dir, maxDepth)` do bounded reachability (1..maxDepth
+hops, default 8, capped 32, cycle-safe) — so
+`Find('intrusion-set').Follow('attributed-to','in').Follow('uses','out')` and
+"is X reachable within N steps" (`ReachHas`) are both one query. Direction is
+`'out'`/`'in'`/`'both'`. Still missing: path enumeration / constrained paths
+("via node X") and shortest path (ADR 0004 Tier 3). `Where()` supports only
 `=`, `!=`, `>`, `<` — there is no `contains`/regex, and `>`/`<` coerce
 numbers only, so **date-range filters do not work**
 (`Where('n.valid_from', '>', '2024-…')` matches nothing; verified). Exact

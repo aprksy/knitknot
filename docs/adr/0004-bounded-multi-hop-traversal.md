@@ -1,6 +1,6 @@
 # ADR 0004 — Bounded multi-hop traversal
 
-- **Status:** accepted — Tier 1 shipped (`Follow`/`FollowHas` + direction); Tier 2 proposed
+- **Status:** accepted — Tier 1 (`Follow`/`FollowHas` + direction) and Tier 2 (`Reach`/`ReachHas` BFS) shipped
 - **Date:** 2026-10-08
 - **Deciders:** knitknot maintainers
 
@@ -70,15 +70,22 @@ Find('intrusion-set')
 Find('host').Where('n.name','=','node1').Reach('', Out)           // default depth
 Find('host').Where('n.name','=','node1').Reach('tcp', Out, 5)     // explicit depth
 Find('host').Where('n.name','=','node1').Reach('routes', In)
-Find('host').Where('n.name','=','node1').Reach('', Out, 9).Where('n.name','=','node-n')
+Find('host').Where('n.name','=','node1').ReachHas('', 'node-n', Out, 9)  // named reachability
 ```
+
+> NOTE: `Reach` binds reached nodes to a **new** var, so a trailing
+> `.Where('n.name','=',…)` would filter the *source* nodes, not the reached
+> ones. Filter reached nodes with `ReachHas` (preferred), or `Where` on the
+> reached var explicitly.
 
 - `.Reach(rel string, dir Direction, maxDepth ...int)` — every node reachable
   in **1..maxDepth** hops along edges of kind `rel` (empty = any kind).
   `maxDepth` is optional; omitted uses the default (below).
 - Direction is an **argument** (`Out`/`In`/`Both`), not separate methods.
-- "Reachable within N steps" (existence) is `Reach(...).Where('n.name','=',…)`
-  then a non-empty check — no separate boolean operator.
+- "Reachable within N steps" (existence) is `ReachHas(rel, value, dir, maxDepth)`
+  then a non-empty check — no separate boolean operator. (An earlier draft
+  showed `.Reach(...).Where('n.name','=',…)`; that was wrong — `Reach` binds
+  reached nodes to a *new* var, so a `Where` on `n` filters the *source* nodes.)
 
 ### Tier 3 — deferred
 
