@@ -51,8 +51,16 @@ These behaviors are covered by `extensions/cti/*_test.go` and the
   is auto-deleted.
 - **Registered vocabulary** — `uses`, `targets`, `indicates`,
   `attributed-to`, `communicates-with`, `based-on`, `derived-from`,
-  `object-ref` all work in `Has(...)`; CTI verbs persist through Save/Load
-  like any other verbs.
+  `object-ref`, `has-tactic` all work in `Has(...)`; CTI verbs persist
+  through Save/Load like any other verbs.
+- **Tactic materialization** `[updated 2026-10-08]` — `import --tactics`
+  turns ATT&CK `kill_chain_phases` (otherwise an inert array prop) into
+  `x-mitre-tactic` nodes carrying a `rank` and one
+  `attack-pattern -has-tactic-> tactic` edge per phase (ADR 0005). Opt-in;
+  the default import is unchanged. Rank comes from
+  `x-mitre-matrix.tactic_refs` when present, else a fixed table. It is
+  **tactic-level (coarse)**: many techniques share a rank, and a
+  multi-tactic pattern gets multiple edges (not collapsed).
 - **Downstream tooling** — imported graphs query, export to DOT/SVG/JSON,
   and save to `.gob` like any other graph.
 - **Durable BoltDB backend** `[updated 2026-10-08]` — `--store bolt:<file.db>`

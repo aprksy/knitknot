@@ -1,6 +1,6 @@
 # ADR 0005 — Tactic (kill-chain phase) modeling for ordered coverage
 
-- **Status:** proposed
+- **Status:** accepted — stage 1 shipped (`import --tactics`: tactic nodes + `has-tactic` edges); `x_mitre_phase` scalar deferred
 - **Date:** 2026-10-08
 - **Deciders:** knitknot maintainers
 
