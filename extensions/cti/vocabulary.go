@@ -16,6 +16,13 @@ const (
 	LabelObservable     = "observable"
 )
 
+// ext: cti-vocab — tactic/matrix labels mirror ATT&CK custom-object type names verbatim.
+const (
+	LabelAttackPattern = "attack-pattern"
+	LabelTactic        = "x-mitre-tactic"
+	LabelMatrix        = "x-mitre-matrix"
+)
+
 // ext: cti-vocab — edge kinds map STIX SRO relationship_type values opaquely.
 const (
 	EdgeUses             = "uses"
@@ -26,6 +33,7 @@ const (
 	EdgeBasedOn          = "based-on"
 	EdgeDerivedFrom      = "derived-from"
 	EdgeObjectRef        = "object-ref"
+	EdgeHasTactic        = "has-tactic" // ext: cti-tactics — attack-pattern -> tactic, one edge per kill-chain phase.
 )
 
 // ext: cti-vocab — common STIX property names preserved on import.
@@ -43,6 +51,13 @@ const (
 	PropObjectMarkings   = "object_marking_refs"
 	PropGranularMarkings = "granular_markings"
 	PropLabels           = "labels"
+	// ext: cti-tactics — tactic materialization props.
+	PropShortname       = "x_mitre_shortname"
+	PropKillChainPhases = "kill_chain_phases"
+	PropTacticRefs      = "tactic_refs"
+	PropRank            = "rank"
+	PropExternalID      = "external_id"
+	PropSynthesized     = "synthesized"
 	// ext: cti-vocab — knitknot-side provenance, not STIX-native.
 	SourceFeed = "source_feed"
 	ImportedAt = "imported_at"
@@ -73,6 +88,7 @@ var SupportedEdgeKinds = []string{
 	EdgeBasedOn,
 	EdgeDerivedFrom,
 	EdgeObjectRef,
+	EdgeHasTactic,
 }
 
 var supportedLabelSet = func() map[string]struct{} {

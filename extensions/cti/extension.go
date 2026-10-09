@@ -17,19 +17,21 @@ var _ extension.Extension = (*Extension)(nil) // ext: cti-ext
 // Name identifies the extension. // ext: cti-ext
 func (e *Extension) Name() string { return "threat-intelligence" } // ext: cti-ext
 
-// ctiVerbs pairs each supported edge kind with its sensible target label. // ext: cti-ext
+// ctiVerbs pairs each supported edge kind with its target label and match property. // ext: cti-ext
 var ctiVerbs = []struct { // ext: cti-ext
-	kind   string // ext: cti-ext
-	target string // ext: cti-ext
+	kind    string // ext: cti-ext
+	target  string // ext: cti-ext
+	matchOn string // ext: cti-ext
 }{ // ext: cti-ext
-	{EdgeUses, ""},                              // ext: cti-ext — multi-target: malware, attack-pattern, tool, … (empty = match any label)
-	{EdgeTargets, LabelVulnerability},           // ext: cti-ext: targets points at vulnerabilities, not identities
-	{EdgeIndicates, LabelMalware},               // ext: cti-ext
-	{EdgeAttributedTo, ""},                      // ext: cti-ext — multi-target: intrusion-set, identity (empty = match any label)
-	{EdgeCommunicatesWith, LabelInfrastructure}, // ext: cti-ext
-	{EdgeBasedOn, LabelObservable},              // ext: cti-ext
-	{EdgeDerivedFrom, LabelObservable},          // ext: cti-ext
-	{EdgeObjectRef, LabelObservable},            // ext: cti-ext
+	{EdgeUses, "", "name"},                              // ext: cti-ext — multi-target: malware, attack-pattern, tool, … (empty = match any label)
+	{EdgeTargets, LabelVulnerability, "name"},           // ext: cti-ext: targets points at vulnerabilities, not identities
+	{EdgeIndicates, LabelMalware, "name"},               // ext: cti-ext
+	{EdgeAttributedTo, "", "name"},                      // ext: cti-ext — multi-target: intrusion-set, identity (empty = match any label)
+	{EdgeCommunicatesWith, LabelInfrastructure, "name"}, // ext: cti-ext
+	{EdgeBasedOn, LabelObservable, "name"},              // ext: cti-ext
+	{EdgeDerivedFrom, LabelObservable, "name"},          // ext: cti-ext
+	{EdgeObjectRef, LabelObservable, "name"},            // ext: cti-ext
+	{EdgeHasTactic, LabelTactic, PropShortname},         // ext: cti-tactics — Has('has-tactic', '<shortname>') resolves on x_mitre_shortname.
 } // ext: cti-ext
 
 // Register adds the stix-2.1 importer and exporter plus the CTI relationship verbs. // ext: cti-ext
@@ -41,7 +43,7 @@ func (e *Extension) Register(r extension.Registry) error { // ext: cti-ext
 		return err // ext: cti-export
 	} // ext: cti-export
 	for _, v := range ctiVerbs { // ext: cti-ext
-		if err := r.RegisterVerb(v.kind, types.Verb{TargetLabel: v.target, MatchOn: "name"}); err != nil { // ext: cti-ext
+		if err := r.RegisterVerb(v.kind, types.Verb{TargetLabel: v.target, MatchOn: v.matchOn}); err != nil { // ext: cti-ext
 			return err // ext: cti-ext
 		} // ext: cti-ext
 	} // ext: cti-ext

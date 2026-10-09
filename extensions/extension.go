@@ -21,6 +21,8 @@ type Extension interface {
 type ImportContext struct { // ext: source-feed
 	Source      string // ext: source-feed — feed id, set by `knitknot import --source <feed-id>`
 	Transaction string // ext: source-feed — optional override; empty = auto-UUID
+	// ext: cti-tactics — opt-in tactic materialization (ADR 0005 stage 1); default false keeps import unchanged.
+	MaterializeTactics bool // ext: cti-tactics — set by `knitknot import --tactics`
 } // ext: source-feed
 
 type Importer interface {

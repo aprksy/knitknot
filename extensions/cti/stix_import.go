@@ -239,6 +239,11 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 	if skipped > 0 { // ext: cti-import
 		fmt.Fprintf(os.Stderr, "cti: skipped %d stale object(s) older than stored snapshots\n", skipped) // ext: cti-import
 	} // ext: cti-import
+	if ic.MaterializeTactics { // ext: cti-tactics — opt-in; default import returns above unchanged
+		if _, _, err := materializeTactics(ctx, s, ic); err != nil { // ext: cti-tactics
+			return fmt.Errorf("cti: materialize tactics: %w", err) // ext: cti-tactics
+		} // ext: cti-tactics
+	} // ext: cti-tactics
 	return nil // ext: cti-import
 } // ext: cti-import
 

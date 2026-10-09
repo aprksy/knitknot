@@ -19,14 +19,16 @@ var importCmd = &cobra.Command{ // ext: import-cmd
 }
 
 var importFlags struct { // ext: import-cmd
-	format string // ext: import-cmd
-	source string // ext: source-feed — cti: source-feed id
+	format  string // ext: import-cmd
+	source  string // ext: source-feed — cti: source-feed id
+	tactics bool   // ext: cti-tactics — materialize ATT&CK tactics (ranked nodes + has-tactic edges)
 }
 
 func init() { // ext: import-cmd
-	importCmd.Flags().StringVar(&importFlags.format, "format", "", "Input format (e.g. stix)")                        // ext: import-cmd
-	importCmd.Flags().StringVar(&importFlags.source, "source", "", "Source feed id recorded on imported nodes/edges") // ext: source-feed
-	RootCmd.AddCommand(importCmd)                                                                                     // ext: import-cmd
+	importCmd.Flags().StringVar(&importFlags.format, "format", "", "Input format (e.g. stix)")                                                                               // ext: import-cmd
+	importCmd.Flags().StringVar(&importFlags.source, "source", "", "Source feed id recorded on imported nodes/edges")                                                        // ext: source-feed
+	importCmd.Flags().BoolVar(&importFlags.tactics, "tactics", false, "Materialize ATT&CK tactics: rank x-mitre-tactic nodes and link attack-patterns via has-tactic edges") // ext: cti-tactics
+	RootCmd.AddCommand(importCmd)                                                                                                                                            // ext: import-cmd
 }
 
 // registerExtensions wires compiled-in extensions into the registry. // ext: import-cmd
@@ -91,8 +93,8 @@ func runImport(cmd *cobra.Command, args []string) error { // ext: import-cmd
 	if cmd != nil && cmd.Context() != nil { // ext: import-cmd
 		ctx = cmd.Context() // ext: import-cmd
 	}
-	ic := extension.ImportContext{Source: importFlags.source}                        // ext: source-feed
-	if err := imp.Import(ctx, ic, engine.Storage(), engine.Verbs(), f); err != nil { // ext: import-cmd // ext: source-feed
+	ic := extension.ImportContext{Source: importFlags.source, MaterializeTactics: importFlags.tactics} // ext: source-feed // ext: cti-tactics
+	if err := imp.Import(ctx, ic, engine.Storage(), engine.Verbs(), f); err != nil {                   // ext: import-cmd // ext: source-feed
 		return fmt.Errorf("import %s as %s: %w", input, importFlags.format, err) // ext: import-cmd
 	}
 

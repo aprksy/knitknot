@@ -38,7 +38,7 @@ func TestLabelAndEdgeKindValues(t *testing.T) {
 	if len(cti.SupportedLabels) != 11 {
 		t.Errorf("len(SupportedLabels) = %d, want 11", len(cti.SupportedLabels))
 	}
-	if len(cti.SupportedEdgeKinds) != 8 {
-		t.Errorf("len(SupportedEdgeKinds) = %d, want 8", len(cti.SupportedEdgeKinds))
+	if len(cti.SupportedEdgeKinds) != 9 {
+		t.Errorf("len(SupportedEdgeKinds) = %d, want 9", len(cti.SupportedEdgeKinds))
 	}
 }

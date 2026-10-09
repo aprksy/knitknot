@@ -261,15 +261,19 @@ func TestExtensionRegisters(t *testing.T) {
 	if _, ok := r.importer("stix-2.1"); !ok {
 		t.Fatal("importer stix-2.1 not registered")
 	}
-	for _, kind := range []string{"uses", "targets", "indicates", "attributed-to", "communicates-with", "based-on", "derived-from", "object-ref"} {
+	for _, kind := range []string{"uses", "targets", "indicates", "attributed-to", "communicates-with", "based-on", "derived-from", "object-ref", "has-tactic"} {
 		v, ok := r.verb(kind)
 		if !ok {
 			t.Fatalf("verb %q not registered", kind)
 		}
 		// uses + attributed-to are multi-target (empty TargetLabel = match any label)
 		multiTarget := kind == "uses" || kind == "attributed-to"
-		if v.MatchOn != "name" || (v.TargetLabel == "" && !multiTarget) {
-			t.Fatalf("verb %q = %+v, want MatchOn=name and (non-empty target or multi-target)", kind, v)
+		wantMatch := "name" // ext: cti-tactics — has-tactic matches on x_mitre_shortname instead
+		if kind == "has-tactic" {
+			wantMatch = cti.PropShortname
+		}
+		if v.MatchOn != wantMatch || (v.TargetLabel == "" && !multiTarget) {
+			t.Fatalf("verb %q = %+v, want MatchOn=%s and (non-empty target or multi-target)", kind, v, wantMatch)
 		}
 	}
 }
