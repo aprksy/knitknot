@@ -146,6 +146,15 @@ so **date-range filters do not work** (`Where('n.valid_from', '>', '2024-…')`
 matches nothing; verified). Exact timestamps with `=` work; for ranges,
 export and filter downstream.
 
+`[updated 2026-10-08]` **Custom fields are preserved but only scalar ones
+filter.** MITRE `x_mitre_*` fields and any custom properties survive import,
+STIX round-trip, Parquet (`props_json`), and copy into a DFIR workspace
+verbatim. But `Where` filters **scalar** values only: `Where('n.x_mitre_version',
+'=', '1.0')` works, while **array and boolean fields do not**
+(`Where('n.x_mitre_domains', '=', 'enterprise-attack')` and
+`Where('n.x_mitre_deprecated', '=', 'false')` both match nothing; verified).
+For those, export and filter downstream.
+
 ### Always pass `-f`
 
 Without it the import runs, prints success, and evaporates with the
