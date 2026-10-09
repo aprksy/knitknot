@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/spf13/cobra"
 
 	"github.com/aprksy/knitknot/pkg/dsl"
+	"github.com/aprksy/knitknot/pkg/ports/query"
 )
 
 var queryCmd = &cobra.Command{
@@ -141,6 +143,29 @@ func printExplain(queryStr string, ast *dsl.Query) {
 				continue                                            // fix: H5
 			} // fix: H5
 			fmt.Printf("    %d. Follow '%s' edges to nodes with value '%s'\n", i+1, rel.Value, val.Value)
+		case "Follow":
+			if len(method.Arguments) < 1 || len(method.Arguments) > 2 {
+				fmt.Printf("    %d. Follow (unrecognized arg)\n", i+1)
+				continue
+			}
+			rel, ok := method.Arguments[0].(*dsl.StringLiteral)
+			if !ok {
+				fmt.Printf("    %d. Follow (unrecognized arg)\n", i+1)
+				continue
+			}
+			fmt.Printf("    %d. Follow '%s' edges (%s)\n", i+1, rel.Value, explainDir(method.Arguments))
+		case "FollowHas":
+			if len(method.Arguments) < 2 || len(method.Arguments) > 3 {
+				fmt.Printf("    %d. FollowHas (unrecognized arg)\n", i+1)
+				continue
+			}
+			rel, ok1 := method.Arguments[0].(*dsl.StringLiteral)
+			val, ok2 := method.Arguments[1].(*dsl.StringLiteral)
+			if !ok1 || !ok2 {
+				fmt.Printf("    %d. FollowHas (unrecognized arg)\n", i+1)
+				continue
+			}
+			fmt.Printf("    %d. Follow '%s' edges to nodes with value '%s' (%s)\n", i+1, rel.Value, val.Value, explainDir(method.Arguments[1:]))
 		case "Where", "WhereEdge":
 			if len(method.Arguments) < 3 { // fix: H5
 				fmt.Printf("    %d. %s (unrecognized arg)\n", i+1, method.Name.Value) // fix: H5
@@ -176,6 +201,33 @@ func printExplain(queryStr string, ast *dsl.Query) {
 		default:
 			fmt.Printf("    %d. Unknown operation: %s\n", i+1, method.Name.Value)
 		}
+	}
+}
+
+func explainDir(args []dsl.Expression) string {
+	if len(args) == 0 {
+		return "out"
+	}
+	last := args[len(args)-1]
+	if s, ok := last.(*dsl.StringLiteral); ok {
+		switch strings.ToLower(s.Value) {
+		case "in", "out", "both":
+			return strings.ToLower(s.Value)
+		}
+	}
+	return "out"
+}
+
+func parseDirection(s string) (query.Direction, error) {
+	switch strings.ToLower(s) {
+	case "out":
+		return query.Out, nil
+	case "in":
+		return query.In, nil
+	case "both":
+		return query.Both, nil
+	default:
+		return query.Out, fmt.Errorf("direction must be 'out', 'in' or 'both', got %q", s)
 	}
 }
 
@@ -257,6 +309,53 @@ func ApplyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 				builder = builder.Limit(num.Value)
 			} else {
 				return nil, fmt.Errorf("limit requires number")
+			}
+
+		case "Follow":
+			if len(method.Arguments) < 1 || len(method.Arguments) > 2 {
+				return nil, fmt.Errorf("follow takes 1 or 2 args: rel and optional direction")
+			}
+			rel, ok := method.Arguments[0].(*dsl.StringLiteral)
+			if !ok {
+				return nil, fmt.Errorf("follow requires rel string")
+			}
+			dir := query.Out
+			if len(method.Arguments) == 2 {
+				dirStr, ok := method.Arguments[1].(*dsl.StringLiteral)
+				if !ok {
+					return nil, fmt.Errorf("follow direction must be a string")
+				}
+				var err error
+				if dir, err = parseDirection(dirStr.Value); err != nil {
+					return nil, err
+				}
+			}
+			if builder != nil {
+				builder = builder.Follow(rel.Value, dir)
+			}
+
+		case "FollowHas":
+			if len(method.Arguments) < 2 || len(method.Arguments) > 3 {
+				return nil, fmt.Errorf("followhas takes 2 or 3 args: rel, value and optional direction")
+			}
+			rel, ok1 := method.Arguments[0].(*dsl.StringLiteral)
+			val, ok2 := method.Arguments[1].(*dsl.StringLiteral)
+			if !ok1 || !ok2 {
+				return nil, fmt.Errorf("followhas requires rel and value strings")
+			}
+			dir := query.Out
+			if len(method.Arguments) == 3 {
+				dirStr, ok := method.Arguments[2].(*dsl.StringLiteral)
+				if !ok {
+					return nil, fmt.Errorf("followhas direction must be a string")
+				}
+				var err error
+				if dir, err = parseDirection(dirStr.Value); err != nil {
+					return nil, err
+				}
+			}
+			if builder != nil {
+				builder = builder.FollowHas(rel.Value, val.Value, dir)
 			}
 
 		case "In": // fix: H3

@@ -129,33 +129,51 @@ func (qe *DefaultQueryEngine) expandViaEdge(
 			continue
 		}
 
-		// Get ALL outgoing edges of this kind
-		for _, e := range storage.GetEdgesFrom(fromNode.ID) {
-			if e.Kind != kind {
-				continue
+		seen := map[string]bool{} // ponytail: per-row target dedup; Both union collapses here
+		expand := func(edges []*types.Edge, target func(*types.Edge) string) {
+			for _, e := range edges {
+				if kind != "" && e.Kind != kind {
+					continue
+				}
+
+				// Check edge filters BEFORE accepting
+				if !qe.matchEdgeFilters(e, edgePattern.Filters) {
+					continue
+				}
+
+				targetID := target(e)
+				if seen[targetID] {
+					continue
+				}
+
+				toNode, ok := storage.GetNode(targetID)
+				if !ok {
+					continue
+				}
+
+				expectedLabel := qe.findLabelForVar(toVar, allNodes)
+				if expectedLabel != "" && toNode.Label != expectedLabel {
+					continue
+				}
+
+				seen[targetID] = true
+				newRow := copyMap(row)
+				// newRow := map[string]*types.Node{}
+				newRow[toVar] = toNode
+
+				// Node/prop filters applied later
+				expanded = append(expanded, newRow)
 			}
+		}
 
-			// Check edge filters BEFORE accepting
-			if !qe.matchEdgeFilters(e, edgePattern.Filters) {
-				continue
-			}
-
-			toNode, ok := storage.GetNode(e.To)
-			if !ok {
-				continue
-			}
-
-			expectedLabel := qe.findLabelForVar(toVar, allNodes)
-			if expectedLabel != "" && toNode.Label != expectedLabel {
-				continue
-			}
-
-			newRow := copyMap(row)
-			// newRow := map[string]*types.Node{}
-			newRow[toVar] = toNode
-
-			// Node/prop filters applied later
-			expanded = append(expanded, newRow)
+		switch edgePattern.Direction {
+		case query.In:
+			expand(storage.GetEdgesTo(fromNode.ID), func(e *types.Edge) string { return e.From })
+		case query.Both:
+			expand(storage.GetEdgesFrom(fromNode.ID), func(e *types.Edge) string { return e.To })
+			expand(storage.GetEdgesTo(fromNode.ID), func(e *types.Edge) string { return e.From })
+		default: // query.Out
+			expand(storage.GetEdgesFrom(fromNode.ID), func(e *types.Edge) string { return e.To })
 		}
 	}
 

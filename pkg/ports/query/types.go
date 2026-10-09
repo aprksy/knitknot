@@ -5,10 +5,19 @@ type PatternNode struct {
 	Label string
 }
 
+type Direction int
+
+const (
+	Out Direction = iota // default / zero value
+	In
+	Both
+)
+
 type PatternEdge struct {
-	From, To string
-	Kind     string
-	Filters  []Filter
+	From, To  string
+	Kind      string
+	Filters   []Filter
+	Direction Direction // Out when zero
 }
 
 type Filter struct {

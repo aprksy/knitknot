@@ -14,7 +14,17 @@ type Builder struct {
 	engine  *GraphEngine
 	plan    *query.QueryPlan
 	nextVar int
+	lastVar string
 }
+
+// Direction re-exports query.Direction so callers need only the graph package.
+type Direction = query.Direction
+
+const (
+	Out  = query.Out
+	In   = query.In
+	Both = query.Both
+)
 
 // Find starts a new query for nodes with given label.
 func (ge *GraphEngine) Find(label string) *Builder {
@@ -22,6 +32,7 @@ func (ge *GraphEngine) Find(label string) *Builder {
 		engine:  ge,
 		plan:    &query.QueryPlan{},
 		nextVar: 0,
+		lastVar: "n",
 	}
 	if ge.defaultSubgraph != "" {
 		b.plan.Subgraph = ge.defaultSubgraph
@@ -78,6 +89,7 @@ func (b *Builder) Has(rel, value string) *Builder {
 	b.MatchNode(v, targetLabel)
 	b.RelatedTo(v, rel, "n")
 	b.Where(v+"."+propKey, "=", value)
+	b.lastVar = v
 
 	return b
 }
@@ -88,6 +100,48 @@ func (b *Builder) RelatedTo(targetVar, edgeKind, sourceVar string) *Builder {
 		To:   targetVar,
 		Kind: edgeKind,
 	})
+	return b
+}
+
+// Follow adds one hop along rel from the last matched variable.
+func (b *Builder) Follow(rel string, dir query.Direction) *Builder {
+	v := b.freshVar()
+
+	verb, ok := b.engine.verbs.Lookup(rel)
+	if !ok {
+		verb = types.Verb{
+			TargetLabel: "", // match any label
+			MatchOn:     types.DefaultMatchProperty,
+		}
+	}
+
+	b.MatchNode(v, verb.TargetLabel)
+	b.plan.Edges = append(b.plan.Edges, &query.PatternEdge{
+		From:      b.lastVar,
+		To:        v,
+		Kind:      rel,
+		Direction: dir,
+	})
+	b.lastVar = v
+
+	return b
+}
+
+// FollowHas is Follow plus a target name filter (the chaining analog of Has).
+func (b *Builder) FollowHas(rel, value string, dir query.Direction) *Builder {
+	b.Follow(rel, dir)
+
+	verb, ok := b.engine.verbs.Lookup(rel)
+	if !ok {
+		verb = types.Verb{MatchOn: types.DefaultMatchProperty}
+	}
+	propKey := verb.MatchOn
+	if propKey == "" {
+		propKey = types.DefaultMatchProperty
+	}
+
+	b.Where(b.lastVar+"."+propKey, "=", value)
+
 	return b
 }
 
