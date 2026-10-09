@@ -363,66 +363,66 @@ func (s *Storage) AddEdgeWithMeta(from, to, kind string, props map[string]any, s
 }
 
 func (s *Storage) addEdgeWithMetaTx(tx *bolt.Tx, from, to, kind string, props map[string]any, source, transaction string) error {
-		if _, ok := getNode(tx, from); !ok {
-			return errors.New("source node not found")
-		}
-		if _, ok := getNode(tx, to); !ok {
-			return errors.New("target node not found")
-		}
-		meta := tx.Bucket(bkMeta)
-		rev := int64(nextCounter(meta, metaRevCounter))
-		now := s.clock()
-		txID := ensureTx(transaction)
-		id := fmt.Sprintf("%s->%s@%s", from, to, kind)
-		snap := types.Snapshot{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Props:       copyMap(props),
-			Source:      source,
-			Transaction: txID,
-		}
-		edge := &types.Edge{
-			ID:         id,
-			From:       from,
-			To:         to,
-			Kind:       kind,
-			Props:      copyMap(props),
-			Subgraphs:  map[string]*types.Subgraph{},
-			CreatedRev: rev,
-			History:    []types.Snapshot{snap},
-		}
-		if err := putEdge(tx, edge); err != nil {
-			return err
-		}
-		if err := tx.Bucket(bkEdgesByFrom).Put(join(from, id), nil); err != nil {
-			return err
-		}
-		if err := tx.Bucket(bkEdgesByTo).Put(join(to, id), nil); err != nil {
-			return err
-		}
-		if err := tx.Bucket(bkEdgesByKind).Put(join(kind, id), nil); err != nil {
-			return err
-		}
-		if err := tx.Bucket(bkEdgeDedup).Put(join(from, to, kind), []byte(id)); err != nil {
-			return err
-		}
-		if err := putSnapshot(tx, id, snap); err != nil {
-			return err
-		}
-		return putEvent(tx, types.Event{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Op:          "create",
-			ElementType: "edge",
-			ElementID:   id,
-			From:        from,
-			To:          to,
-			Kind:        kind,
-			Source:      source,
-			Transaction: txID,
-		})
+	if _, ok := getNode(tx, from); !ok {
+		return errors.New("source node not found")
+	}
+	if _, ok := getNode(tx, to); !ok {
+		return errors.New("target node not found")
+	}
+	meta := tx.Bucket(bkMeta)
+	rev := int64(nextCounter(meta, metaRevCounter))
+	now := s.clock()
+	txID := ensureTx(transaction)
+	id := fmt.Sprintf("%s->%s@%s", from, to, kind)
+	snap := types.Snapshot{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Props:       copyMap(props),
+		Source:      source,
+		Transaction: txID,
+	}
+	edge := &types.Edge{
+		ID:         id,
+		From:       from,
+		To:         to,
+		Kind:       kind,
+		Props:      copyMap(props),
+		Subgraphs:  map[string]*types.Subgraph{},
+		CreatedRev: rev,
+		History:    []types.Snapshot{snap},
+	}
+	if err := putEdge(tx, edge); err != nil {
+		return err
+	}
+	if err := tx.Bucket(bkEdgesByFrom).Put(join(from, id), nil); err != nil {
+		return err
+	}
+	if err := tx.Bucket(bkEdgesByTo).Put(join(to, id), nil); err != nil {
+		return err
+	}
+	if err := tx.Bucket(bkEdgesByKind).Put(join(kind, id), nil); err != nil {
+		return err
+	}
+	if err := tx.Bucket(bkEdgeDedup).Put(join(from, to, kind), []byte(id)); err != nil {
+		return err
+	}
+	if err := putSnapshot(tx, id, snap); err != nil {
+		return err
+	}
+	return putEvent(tx, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "create",
+		ElementType: "edge",
+		ElementID:   id,
+		From:        from,
+		To:          to,
+		Kind:        kind,
+		Source:      source,
+		Transaction: txID,
+	})
 }
 
 func (s *Storage) UpdateNode(id string, props map[string]any) error {
@@ -439,42 +439,42 @@ func (s *Storage) UpdateNodeWithMeta(id string, props map[string]any, source, tr
 }
 
 func (s *Storage) updateNodeWithMetaTx(tx *bolt.Tx, id string, props map[string]any, source, transaction string) error {
-		node, ok := getNode(tx, id)
-		if !ok {
-			return fmt.Errorf("node not found")
-		}
-		if node.DeletedAt != nil {
-			return fmt.Errorf("node deleted")
-		}
-		rev := int64(nextCounter(tx.Bucket(bkMeta), metaRevCounter))
-		now := s.clock()
-		txID := ensureTx(transaction)
-		snap := types.Snapshot{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Props:       copyMap(props),
-			Source:      source,
-			Transaction: txID,
-		}
-		node.Props = copyMap(props)
-		node.History = append(node.History, snap)
-		if err := putNode(tx, node); err != nil {
-			return err
-		}
-		if err := putSnapshot(tx, id, snap); err != nil {
-			return err
-		}
-		return putEvent(tx, types.Event{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Op:          "update",
-			ElementType: "node",
-			ElementID:   id,
-			Source:      source,
-			Transaction: txID,
-		})
+	node, ok := getNode(tx, id)
+	if !ok {
+		return fmt.Errorf("node not found")
+	}
+	if node.DeletedAt != nil {
+		return fmt.Errorf("node deleted")
+	}
+	rev := int64(nextCounter(tx.Bucket(bkMeta), metaRevCounter))
+	now := s.clock()
+	txID := ensureTx(transaction)
+	snap := types.Snapshot{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Props:       copyMap(props),
+		Source:      source,
+		Transaction: txID,
+	}
+	node.Props = copyMap(props)
+	node.History = append(node.History, snap)
+	if err := putNode(tx, node); err != nil {
+		return err
+	}
+	if err := putSnapshot(tx, id, snap); err != nil {
+		return err
+	}
+	return putEvent(tx, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "update",
+		ElementType: "node",
+		ElementID:   id,
+		Source:      source,
+		Transaction: txID,
+	})
 }
 
 func (s *Storage) UpdateEdge(id string, props map[string]any) error {
@@ -491,45 +491,45 @@ func (s *Storage) UpdateEdgeWithMeta(id string, props map[string]any, source, tr
 }
 
 func (s *Storage) updateEdgeWithMetaTx(tx *bolt.Tx, id string, props map[string]any, source, transaction string) error {
-		edge, ok := getEdge(tx, id)
-		if !ok {
-			return fmt.Errorf("edge not found")
-		}
-		if edge.DeletedAt != nil {
-			return fmt.Errorf("edge deleted")
-		}
-		rev := int64(nextCounter(tx.Bucket(bkMeta), metaRevCounter))
-		now := s.clock()
-		txID := ensureTx(transaction)
-		snap := types.Snapshot{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Props:       copyMap(props),
-			Source:      source,
-			Transaction: txID,
-		}
-		edge.Props = copyMap(props)
-		edge.History = append(edge.History, snap)
-		if err := putEdge(tx, edge); err != nil {
-			return err
-		}
-		if err := putSnapshot(tx, id, snap); err != nil {
-			return err
-		}
-		return putEvent(tx, types.Event{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Op:          "update",
-			ElementType: "edge",
-			ElementID:   id,
-			From:        edge.From,
-			To:          edge.To,
-			Kind:        edge.Kind,
-			Source:      source,
-			Transaction: txID,
-		})
+	edge, ok := getEdge(tx, id)
+	if !ok {
+		return fmt.Errorf("edge not found")
+	}
+	if edge.DeletedAt != nil {
+		return fmt.Errorf("edge deleted")
+	}
+	rev := int64(nextCounter(tx.Bucket(bkMeta), metaRevCounter))
+	now := s.clock()
+	txID := ensureTx(transaction)
+	snap := types.Snapshot{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Props:       copyMap(props),
+		Source:      source,
+		Transaction: txID,
+	}
+	edge.Props = copyMap(props)
+	edge.History = append(edge.History, snap)
+	if err := putEdge(tx, edge); err != nil {
+		return err
+	}
+	if err := putSnapshot(tx, id, snap); err != nil {
+		return err
+	}
+	return putEvent(tx, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "update",
+		ElementType: "edge",
+		ElementID:   id,
+		From:        edge.From,
+		To:          edge.To,
+		Kind:        edge.Kind,
+		Source:      source,
+		Transaction: txID,
+	})
 }
 
 func (s *Storage) DeleteNode(id string) error {
@@ -546,91 +546,91 @@ func (s *Storage) DeleteNodeWithMeta(id, source, transaction string) error {
 }
 
 func (s *Storage) deleteNodeWithMetaTx(tx *bolt.Tx, id, source, transaction string) error {
-		n, ok := getNode(tx, id)
-		if !ok {
-			return fmt.Errorf("node not found")
-		}
-		if n.DeletedAt != nil {
-			return fmt.Errorf("node already deleted")
-		}
-		meta := tx.Bucket(bkMeta)
-		now := s.clock()
-		txID := ensureTx(transaction)
-		rev := int64(nextCounter(meta, metaRevCounter))
-		n.History = append(n.History, types.Snapshot{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Props:       copyMap(n.Props),
-			Source:      source,
-			Transaction: txID,
-			Deleted:     true,
-		})
-		n.DeletedAt = &now
-		if err := putNode(tx, n); err != nil {
-			return err
-		}
-		if err := putEvent(tx, types.Event{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Op:          "delete",
-			ElementType: "node",
-			ElementID:   id,
-			Source:      source,
-			Transaction: txID,
-		}); err != nil {
-			return err
-		}
-		// version: cascade-tombstone — mirror inmem: tombstone incident
-		// edges (dedupe self-loops present in both from/to indexes).
-		seen := map[string]struct{}{}
-		for _, b := range []*bolt.Bucket{tx.Bucket(bkEdgesByFrom), tx.Bucket(bkEdgesByTo)} {
-			p := prefixKey(id)
-			c := b.Cursor()
-			for k, _ := c.Seek(p); k != nil && bytes.HasPrefix(k, p); k, _ = c.Next() {
-				edgeID := string(k[bytes.LastIndexByte(k, 0)+1:])
-				if _, dup := seen[edgeID]; dup {
-					continue
-				}
-				seen[edgeID] = struct{}{}
-				e, ok := getEdge(tx, edgeID)
-				if !ok || e.DeletedAt != nil {
-					continue
-				}
-				erev := int64(nextCounter(meta, metaRevCounter))
-				e.History = append(e.History, types.Snapshot{
-					Rev:         erev,
-					EventTime:   now,
-					LogicalTime: now,
-					Props:       copyMap(e.Props),
-					Source:      source,
-					Transaction: txID,
-					Deleted:     true,
-				})
-				t := now
-				e.DeletedAt = &t
-				if err := putEdge(tx, e); err != nil {
-					return err
-				}
-				if err := putEvent(tx, types.Event{
-					Rev:         erev,
-					EventTime:   now,
-					LogicalTime: now,
-					Op:          "delete",
-					ElementType: "edge",
-					ElementID:   e.ID,
-					From:        e.From,
-					To:          e.To,
-					Kind:        e.Kind,
-					Source:      source,
-					Transaction: txID,
-				}); err != nil {
-					return err
-				}
+	n, ok := getNode(tx, id)
+	if !ok {
+		return fmt.Errorf("node not found")
+	}
+	if n.DeletedAt != nil {
+		return fmt.Errorf("node already deleted")
+	}
+	meta := tx.Bucket(bkMeta)
+	now := s.clock()
+	txID := ensureTx(transaction)
+	rev := int64(nextCounter(meta, metaRevCounter))
+	n.History = append(n.History, types.Snapshot{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Props:       copyMap(n.Props),
+		Source:      source,
+		Transaction: txID,
+		Deleted:     true,
+	})
+	n.DeletedAt = &now
+	if err := putNode(tx, n); err != nil {
+		return err
+	}
+	if err := putEvent(tx, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "delete",
+		ElementType: "node",
+		ElementID:   id,
+		Source:      source,
+		Transaction: txID,
+	}); err != nil {
+		return err
+	}
+	// version: cascade-tombstone — mirror inmem: tombstone incident
+	// edges (dedupe self-loops present in both from/to indexes).
+	seen := map[string]struct{}{}
+	for _, b := range []*bolt.Bucket{tx.Bucket(bkEdgesByFrom), tx.Bucket(bkEdgesByTo)} {
+		p := prefixKey(id)
+		c := b.Cursor()
+		for k, _ := c.Seek(p); k != nil && bytes.HasPrefix(k, p); k, _ = c.Next() {
+			edgeID := string(k[bytes.LastIndexByte(k, 0)+1:])
+			if _, dup := seen[edgeID]; dup {
+				continue
+			}
+			seen[edgeID] = struct{}{}
+			e, ok := getEdge(tx, edgeID)
+			if !ok || e.DeletedAt != nil {
+				continue
+			}
+			erev := int64(nextCounter(meta, metaRevCounter))
+			e.History = append(e.History, types.Snapshot{
+				Rev:         erev,
+				EventTime:   now,
+				LogicalTime: now,
+				Props:       copyMap(e.Props),
+				Source:      source,
+				Transaction: txID,
+				Deleted:     true,
+			})
+			t := now
+			e.DeletedAt = &t
+			if err := putEdge(tx, e); err != nil {
+				return err
+			}
+			if err := putEvent(tx, types.Event{
+				Rev:         erev,
+				EventTime:   now,
+				LogicalTime: now,
+				Op:          "delete",
+				ElementType: "edge",
+				ElementID:   e.ID,
+				From:        e.From,
+				To:          e.To,
+				Kind:        e.Kind,
+				Source:      source,
+				Transaction: txID,
+			}); err != nil {
+				return err
 			}
 		}
-		return nil
+	}
+	return nil
 }
 
 func (s *Storage) DeleteEdge(from, to, kind string) error {
@@ -648,42 +648,42 @@ func (s *Storage) DeleteEdgeWithMeta(from, to, kind, source, transaction string)
 }
 
 func (s *Storage) deleteEdgeWithMetaTx(tx *bolt.Tx, id, source, transaction string) error {
-		e, ok := getEdge(tx, id)
-		if !ok {
-			return fmt.Errorf("edge not found")
-		}
-		if e.DeletedAt != nil {
-			return fmt.Errorf("edge already deleted")
-		}
-		rev := int64(nextCounter(tx.Bucket(bkMeta), metaRevCounter))
-		now := s.clock()
-		txID := ensureTx(transaction)
-		e.History = append(e.History, types.Snapshot{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Props:       copyMap(e.Props),
-			Source:      source,
-			Transaction: txID,
-			Deleted:     true,
-		})
-		e.DeletedAt = &now
-		if err := putEdge(tx, e); err != nil {
-			return err
-		}
-		return putEvent(tx, types.Event{
-			Rev:         rev,
-			EventTime:   now,
-			LogicalTime: now,
-			Op:          "delete",
-			ElementType: "edge",
-			ElementID:   id,
-			From:        e.From,
-			To:          e.To,
-			Kind:        e.Kind,
-			Source:      source,
-			Transaction: txID,
-		})
+	e, ok := getEdge(tx, id)
+	if !ok {
+		return fmt.Errorf("edge not found")
+	}
+	if e.DeletedAt != nil {
+		return fmt.Errorf("edge already deleted")
+	}
+	rev := int64(nextCounter(tx.Bucket(bkMeta), metaRevCounter))
+	now := s.clock()
+	txID := ensureTx(transaction)
+	e.History = append(e.History, types.Snapshot{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Props:       copyMap(e.Props),
+		Source:      source,
+		Transaction: txID,
+		Deleted:     true,
+	})
+	e.DeletedAt = &now
+	if err := putEdge(tx, e); err != nil {
+		return err
+	}
+	return putEvent(tx, types.Event{
+		Rev:         rev,
+		EventTime:   now,
+		LogicalTime: now,
+		Op:          "delete",
+		ElementType: "edge",
+		ElementID:   id,
+		From:        e.From,
+		To:          e.To,
+		Kind:        e.Kind,
+		Source:      source,
+		Transaction: txID,
+	})
 }
 
 // AddToSubgraph / RemoveFromSubgraph mirror the inmem helpers (load-modify-store).

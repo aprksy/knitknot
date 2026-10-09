@@ -22,7 +22,7 @@ var ctiVerbs = []struct { // ext: cti-ext
 	kind   string // ext: cti-ext
 	target string // ext: cti-ext
 }{ // ext: cti-ext
-	{EdgeUses, ""},                                  // ext: cti-ext — multi-target: malware, attack-pattern, tool, … (empty = match any label)
+	{EdgeUses, ""},                              // ext: cti-ext — multi-target: malware, attack-pattern, tool, … (empty = match any label)
 	{EdgeTargets, LabelVulnerability},           // ext: cti-ext: targets points at vulnerabilities, not identities
 	{EdgeIndicates, LabelMalware},               // ext: cti-ext
 	{EdgeAttributedTo, ""},                      // ext: cti-ext — multi-target: intrusion-set, identity (empty = match any label)

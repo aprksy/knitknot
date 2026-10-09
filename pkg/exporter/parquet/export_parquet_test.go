@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	parquetgo "github.com/parquet-go/parquet-go"
 	"github.com/aprksy/knitknot/pkg/ports/types"
+	parquetgo "github.com/parquet-go/parquet-go"
 )
 
 func TestExportToParquetRoundTrip(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	parquetgo "github.com/parquet-go/parquet-go"
 	"github.com/aprksy/knitknot/pkg/ports/types"
+	parquetgo "github.com/parquet-go/parquet-go"
 )
 
 // NodeRow is the parquet schema for graph nodes.

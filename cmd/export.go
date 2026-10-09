@@ -21,10 +21,10 @@ import (
 type ExportFormat string
 
 const (
-	FormatDOT  ExportFormat = "dot"
-	FormatSVG  ExportFormat = "svg" // requires `dot` command
-	FormatJSON ExportFormat = "json"
-	FormatSTIX ExportFormat = "stix" // ext: cti-export
+	FormatDOT     ExportFormat = "dot"
+	FormatSVG     ExportFormat = "svg" // requires `dot` command
+	FormatJSON    ExportFormat = "json"
+	FormatSTIX    ExportFormat = "stix" // ext: cti-export
 	FormatParquet ExportFormat = "parquet"
 )
 

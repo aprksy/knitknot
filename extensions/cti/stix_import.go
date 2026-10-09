@@ -126,108 +126,108 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 		} // ext: cti-import
 	} // ext: cti-import
 	ids := make(map[string]string, len(nodes)) // ext: cti-import
-	skipped := 0                              // ext: cti-import — stale re-imports skipped below
-	pass2 := func() error { // ext: cti-import
-	for i, n := range nodes {                  // ext: cti-import
-		if i%64 == 0 { // ext: cti-import
-			if err := ctx.Err(); err != nil { // ext: cti-import
-				return err // ext: cti-import
+	skipped := 0                               // ext: cti-import — stale re-imports skipped below
+	pass2 := func() error {                    // ext: cti-import
+		for i, n := range nodes { // ext: cti-import
+			if i%64 == 0 { // ext: cti-import
+				if err := ctx.Err(); err != nil { // ext: cti-import
+					return err // ext: cti-import
+				} // ext: cti-import
 			} // ext: cti-import
-		} // ext: cti-import
-		if existing, ok := known[n.stixID]; ok { // ext: cti-import
-			if isStale(existing.Props, n.props) { // ext: cti-import — older re-import: keep live props, no new snapshot
-				skipped++ // ext: cti-import
+			if existing, ok := known[n.stixID]; ok { // ext: cti-import
+				if isStale(existing.Props, n.props) { // ext: cti-import — older re-import: keep live props, no new snapshot
+					skipped++                   // ext: cti-import
+					ids[n.stixID] = existing.ID // ext: cti-import
+					continue                    // ext: cti-import
+				} // ext: cti-import
+				if err := updateNodeSrc(s, existing.ID, mergeProps(existing.Props, n.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
+					return fmt.Errorf("cti: update node %q: %w", n.stixID, err) // ext: cti-import
+				} // ext: cti-import
 				ids[n.stixID] = existing.ID // ext: cti-import
 				continue                    // ext: cti-import
 			} // ext: cti-import
-			if err := updateNodeSrc(s, existing.ID, mergeProps(existing.Props, n.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
-				return fmt.Errorf("cti: update node %q: %w", n.stixID, err) // ext: cti-import
+			gid, err := addNodeSrc(s, n.label, n.props, ic.Source, ic.Transaction) // ext: cti-import // ext: source-feed
+			if err != nil {                                                        // ext: cti-import
+				return fmt.Errorf("cti: add node %q: %w", n.stixID, err) // ext: cti-import
 			} // ext: cti-import
-			ids[n.stixID] = existing.ID // ext: cti-import
-			continue                    // ext: cti-import
-		} // ext: cti-import
-		gid, err := addNodeSrc(s, n.label, n.props, ic.Source, ic.Transaction) // ext: cti-import // ext: source-feed
-		if err != nil {                                                        // ext: cti-import
-			return fmt.Errorf("cti: add node %q: %w", n.stixID, err) // ext: cti-import
-		} // ext: cti-import
-		ids[n.stixID] = gid                  // ext: cti-import
-		if fresh, ok := s.GetNode(gid); ok { // ext: cti-import
-			known[n.stixID] = fresh // ext: cti-import — dup stixIDs in one bundle merge
-		} // ext: cti-import
-	} // ext: cti-import
-	// perf: seen-set for edges added this import + one GetEdgesFrom per
-	// from-node; the old per-relationship scan was quadratic on hub nodes.
-	seen := make(map[string]string, len(rels))           // ext: cti-import — from|to|kind -> edge ID
-	fromCache := make(map[string]map[string]*types.Edge) // ext: cti-import — from -> to|kind -> edge
-	for i, rel := range rels {                           // ext: cti-import
-		if i%64 == 0 { // ext: cti-import
-			if err := ctx.Err(); err != nil { // ext: cti-import
-				return err // ext: cti-import
+			ids[n.stixID] = gid                  // ext: cti-import
+			if fresh, ok := s.GetNode(gid); ok { // ext: cti-import
+				known[n.stixID] = fresh // ext: cti-import — dup stixIDs in one bundle merge
 			} // ext: cti-import
 		} // ext: cti-import
-		from := ids[rel.fromRef] // ext: cti-import
-		if from == "" {          // ext: cti-import
-			from = resolveGraphID(s, known, rel.fromRef) // ext: cti-import
-		} // ext: cti-import
-		to := ids[rel.toRef] // ext: cti-import
-		if to == "" {        // ext: cti-import
-			to = resolveGraphID(s, known, rel.toRef) // ext: cti-import
-		} // ext: cti-import
-		if from == "" || to == "" { // ext: cti-import
-			return fmt.Errorf("cti: relationship %q has unresolvable endpoint", rel.stixID) // ext: cti-import
-		} // ext: cti-import
-		key := from + "\x00" + to + "\x00" + rel.kind // ext: cti-import
-		if eid, ok := seen[key]; ok {                 // ext: cti-import — dup in this import
-			if e, ok := s.GetEdge(eid); ok { // ext: cti-import
-				if isStale(e.Props, rel.props) { // ext: cti-import
-					skipped++ // ext: cti-import
+		// perf: seen-set for edges added this import + one GetEdgesFrom per
+		// from-node; the old per-relationship scan was quadratic on hub nodes.
+		seen := make(map[string]string, len(rels))           // ext: cti-import — from|to|kind -> edge ID
+		fromCache := make(map[string]map[string]*types.Edge) // ext: cti-import — from -> to|kind -> edge
+		for i, rel := range rels {                           // ext: cti-import
+			if i%64 == 0 { // ext: cti-import
+				if err := ctx.Err(); err != nil { // ext: cti-import
+					return err // ext: cti-import
+				} // ext: cti-import
+			} // ext: cti-import
+			from := ids[rel.fromRef] // ext: cti-import
+			if from == "" {          // ext: cti-import
+				from = resolveGraphID(s, known, rel.fromRef) // ext: cti-import
+			} // ext: cti-import
+			to := ids[rel.toRef] // ext: cti-import
+			if to == "" {        // ext: cti-import
+				to = resolveGraphID(s, known, rel.toRef) // ext: cti-import
+			} // ext: cti-import
+			if from == "" || to == "" { // ext: cti-import
+				return fmt.Errorf("cti: relationship %q has unresolvable endpoint", rel.stixID) // ext: cti-import
+			} // ext: cti-import
+			key := from + "\x00" + to + "\x00" + rel.kind // ext: cti-import
+			if eid, ok := seen[key]; ok {                 // ext: cti-import — dup in this import
+				if e, ok := s.GetEdge(eid); ok { // ext: cti-import
+					if isStale(e.Props, rel.props) { // ext: cti-import
+						skipped++ // ext: cti-import
+						continue  // ext: cti-import
+					} // ext: cti-import
+					if err := updateEdgeSrc(s, e.ID, mergeProps(e.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
+						return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
+					} // ext: cti-import
 					continue // ext: cti-import
 				} // ext: cti-import
-				if err := updateEdgeSrc(s, e.ID, mergeProps(e.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
+			} // ext: cti-import
+			bucket, ok := fromCache[from] // ext: cti-import
+			if !ok {                      // ext: cti-import
+				bucket = make(map[string]*types.Edge)    // ext: cti-import
+				for _, e := range s.GetEdgesFrom(from) { // ext: cti-import
+					bucket[e.To+"\x00"+e.Kind] = e // ext: cti-import
+				} // ext: cti-import
+				fromCache[from] = bucket // ext: cti-import
+			} // ext: cti-import
+			if found, ok := bucket[to+"\x00"+rel.kind]; ok { // ext: cti-import
+				if isStale(found.Props, rel.props) { // ext: cti-import
+					seen[key] = found.ID // ext: cti-import
+					skipped++            // ext: cti-import
+					continue             // ext: cti-import
+				} // ext: cti-import
+				if err := updateEdgeSrc(s, found.ID, mergeProps(found.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
 					return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
 				} // ext: cti-import
-				continue // ext: cti-import
-			} // ext: cti-import
-		} // ext: cti-import
-		bucket, ok := fromCache[from] // ext: cti-import
-		if !ok {                      // ext: cti-import
-			bucket = make(map[string]*types.Edge)    // ext: cti-import
-			for _, e := range s.GetEdgesFrom(from) { // ext: cti-import
-				bucket[e.To+"\x00"+e.Kind] = e // ext: cti-import
-			} // ext: cti-import
-			fromCache[from] = bucket // ext: cti-import
-		} // ext: cti-import
-		if found, ok := bucket[to+"\x00"+rel.kind]; ok { // ext: cti-import
-			if isStale(found.Props, rel.props) { // ext: cti-import
 				seen[key] = found.ID // ext: cti-import
-				skipped++ // ext: cti-import
 				continue             // ext: cti-import
 			} // ext: cti-import
-			if err := updateEdgeSrc(s, found.ID, mergeProps(found.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
-				return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
+			if err := addEdgeSrc(s, from, to, rel.kind, rel.props, ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
+				return fmt.Errorf("cti: add edge %q: %w", rel.stixID, err) // ext: cti-import
 			} // ext: cti-import
-			seen[key] = found.ID // ext: cti-import
-			continue             // ext: cti-import
-		} // ext: cti-import
-		if err := addEdgeSrc(s, from, to, rel.kind, rel.props, ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
-			return fmt.Errorf("cti: add edge %q: %w", rel.stixID, err) // ext: cti-import
-		} // ext: cti-import
-		// perf: resolve the real edge (O(1) on deterministic IDs, one scan
-		// fallback otherwise) so later dups hit seen->GetEdge, not a re-add.
-		if e, ok := s.GetEdge(from + "->" + to + "@" + rel.kind); ok { // ext: cti-import
-			seen[key] = e.ID               // ext: cti-import
-			bucket[to+"\x00"+rel.kind] = e // ext: cti-import
-			continue                       // ext: cti-import
-		} // ext: cti-import
-		for _, e := range s.GetEdgesFrom(from) { // ext: cti-import — non-deterministic backend fallback
-			if e.To == to && e.Kind == rel.kind { // ext: cti-import
+			// perf: resolve the real edge (O(1) on deterministic IDs, one scan
+			// fallback otherwise) so later dups hit seen->GetEdge, not a re-add.
+			if e, ok := s.GetEdge(from + "->" + to + "@" + rel.kind); ok { // ext: cti-import
 				seen[key] = e.ID               // ext: cti-import
 				bucket[to+"\x00"+rel.kind] = e // ext: cti-import
-				break                          // ext: cti-import
+				continue                       // ext: cti-import
+			} // ext: cti-import
+			for _, e := range s.GetEdgesFrom(from) { // ext: cti-import — non-deterministic backend fallback
+				if e.To == to && e.Kind == rel.kind { // ext: cti-import
+					seen[key] = e.ID               // ext: cti-import
+					bucket[to+"\x00"+rel.kind] = e // ext: cti-import
+					break                          // ext: cti-import
+				} // ext: cti-import
 			} // ext: cti-import
 		} // ext: cti-import
-	} // ext: cti-import
-	return nil // ext: cti-import
+		return nil // ext: cti-import
 	} // ext: cti-import
 	if bs, ok := s.(batchStore); ok { // ext: cti-import
 		if err := bs.Batch(pass2); err != nil { // ext: cti-import
@@ -327,11 +327,11 @@ func findGraphID(s storage.StorageEngine, stixID string) string { // ext: cti-im
 // not stale, so the update proceeds as before. Equal timestamps proceed. // ext: cti-import
 func isStale(oldProps, newProps map[string]any) bool { // ext: cti-import
 	oldT, ok := stixTime(oldProps["modified"]) // ext: cti-import
-	if !ok { // ext: cti-import
+	if !ok {                                   // ext: cti-import
 		return false // ext: cti-import
 	} // ext: cti-import
 	newT, ok := stixTime(newProps["modified"]) // ext: cti-import
-	if !ok { // ext: cti-import
+	if !ok {                                   // ext: cti-import
 		return false // ext: cti-import
 	} // ext: cti-import
 	return newT.Before(oldT) // ext: cti-import
@@ -343,7 +343,7 @@ func stixTime(v any) (time.Time, bool) { // ext: cti-import
 		return time.Time{}, false // ext: cti-import
 	} // ext: cti-import
 	t, err := time.Parse(time.RFC3339Nano, s) // ext: cti-import
-	if err != nil { // ext: cti-import
+	if err != nil {                           // ext: cti-import
 		return time.Time{}, false // ext: cti-import
 	} // ext: cti-import
 	return t, true // ext: cti-import
