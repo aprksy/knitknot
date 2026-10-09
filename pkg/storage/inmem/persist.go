@@ -167,6 +167,24 @@ func (s *Storage) Load(filename string, engine *graph.GraphEngine) (err error) {
 	}
 	s.revCounter.Store(maxRev)
 
+	// persist: resync the process-global node ID counter past any
+	// restored n<digits> IDs. Without this, the first AddNode after a
+	// Load in a fresh process reissues n1 and collides with restored
+	// nodes ("node already exists").
+	var maxSeen uint64
+	for id := range s.nodes {
+		var n uint64
+		if _, err := fmt.Sscanf(id, "n%d", &n); err == nil && n > maxSeen {
+			maxSeen = n
+		}
+	}
+	for {
+		cur := idSeq.Load()
+		if cur >= maxSeen || idSeq.CompareAndSwap(cur, maxSeen) {
+			break
+		}
+	}
+
 	// After restoring nodes/edges
 	if engine != nil {
 		for name, verb := range saved.Verbs {
