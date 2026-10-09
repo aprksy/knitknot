@@ -54,6 +54,14 @@ Covered by `extensions/dfir/*_test.go`:
   reachable-but-not-direct (malware/campaign/actor) is **inferred context**,
   reported separately and never counted, so a single matched IOC cannot
   inflate the score. `Total == 0` renders `n/a`, not 100% (ADR 0006).
+- **Ordered coverage** `[updated 2026-10-08]` — on the `attack-pattern`
+  dimension, coverage is also reported **in sequence**: covered techniques are
+  ordered by evidence order (an optional `order` column, else row order) and
+  compared to the expected tactic rank; `ordered = LIS/N` (longest
+  non-decreasing subsequence over the expected order; ADR 0007). Rendered as
+  `ordered LIS/N` with the expected vs actual sequence; `n/a` when the pattern
+  has no ranks (`import --tactics`) or there is no order. `N` is always shown
+  — one technique is trivially "in order".
 - **Downstream tooling** — a workspace queries like any graph and exports
   to Parquet (and STIX for the nodes carrying `stix_id`).
 

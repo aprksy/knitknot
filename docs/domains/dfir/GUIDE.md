@@ -119,6 +119,21 @@ Inferred context: 4 nodes
 - **Not confidence or attribution.** "1/2 techniques" ≠ "it is actor X" —
   many actors share techniques.
 
+**Ordered coverage.** Add an `order` column to the CSV (else row order is
+used) and the `attack-pattern` dimension also reports `ordered LIS/N` — how
+many covered techniques appear in the expected tactic order:
+
+```
+attack-pattern 2/4 50%
+  ordered 2/2 100%
+  expected: Command Shell, Remote Desktop
+  actual:   Command Shell, Remote Desktop
+```
+
+Reversed evidence lowers it (`1/2`). It requires `import --tactics` (tactic
+ranks); without them it reads `ordered n/a`. `N` is always shown — a single
+technique is trivially "in order".
+
 ## Build a persistable case workspace
 
 A report is one-shot. A **workspace** is a graph you can keep, query, and

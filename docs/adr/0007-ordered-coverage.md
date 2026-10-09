@@ -1,6 +1,6 @@
 # ADR 0007 — Ordered coverage (sequence-aware similarity)
 
-- **Status:** accepted — decisions confirmed; stages 1–3 to implement
+- **Status:** accepted — stages 1–3 shipped (`ordered LIS/N` on the attack-pattern dimension)
 - **Date:** 2026-10-08
 - **Deciders:** knitknot maintainers
 
