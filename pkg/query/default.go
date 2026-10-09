@@ -48,7 +48,7 @@ func (qe *DefaultQueryEngine) Execute(
 
 	// Now extend with remaining nodes + edges
 	for _, edgePattern := range plan.Edges {
-		results = qe.expandViaEdge(storage, results, edgePattern, plan.Nodes, plan.Filters)
+		results = qe.expandViaEdge(storage, results, edgePattern, plan.Nodes, plan.Filters, plan.Subgraph)
 	}
 
 	// Apply final filters (some may involve multiple vars)
@@ -116,12 +116,21 @@ func (qe *DefaultQueryEngine) expandViaEdge(
 	edgePattern *query.PatternEdge,
 	allNodes []*query.PatternNode,
 	filters []query.Filter,
+	subgraph string,
 ) []map[string]*types.Node {
+	if edgePattern.MaxDepth > 1 {
+		return qe.expandReachable(storage, rows, edgePattern, allNodes, subgraph)
+	}
+
 	var expanded []map[string]*types.Node
 
 	fromVar := edgePattern.From
 	toVar := edgePattern.To
 	kind := edgePattern.Kind
+
+	// NOTE: single-hop expansion intentionally ignores subgraph membership
+	// (pre-existing gap — only Execute's initial candidates are filtered).
+	// Subgraph restriction applies to the BFS path below.
 
 	for _, row := range rows {
 		fromNode, ok := row[fromVar]
@@ -178,6 +187,121 @@ func (qe *DefaultQueryEngine) expandViaEdge(
 	}
 
 	return expanded
+}
+
+// expandReachable runs a BFS from row[From] to depth MaxDepth and emits one
+// row per reached node at depths [MinDepth, MaxDepth]. The per-source visited
+// set (seeded with the source) makes it cycle-safe; output is the node set,
+// not paths.
+func (qe *DefaultQueryEngine) expandReachable(
+	storage storage.StorageEngine,
+	rows []map[string]*types.Node,
+	edgePattern *query.PatternEdge,
+	allNodes []*query.PatternNode,
+	subgraph string,
+) []map[string]*types.Node {
+	var expanded []map[string]*types.Node
+
+	fromVar := edgePattern.From
+	toVar := edgePattern.To
+	minDepth := edgePattern.MinDepth
+	if minDepth < 1 {
+		minDepth = 1
+	}
+
+	var inSubgraph map[string]bool
+	if subgraph != "" {
+		inSubgraph = map[string]bool{}
+		for _, n := range storage.GetNodesIn(subgraph) {
+			inSubgraph[n.ID] = true
+		}
+	}
+	expectedLabel := qe.findLabelForVar(toVar, allNodes)
+
+	for _, row := range rows {
+		fromNode, ok := row[fromVar]
+		if !ok {
+			continue
+		}
+
+		if inSubgraph != nil && !inSubgraph[fromNode.ID] {
+			continue // traversal stays within the subgraph, source included
+		}
+
+		visited := map[string]bool{fromNode.ID: true}
+		emitted := map[string]bool{}
+		frontier := []*types.Node{fromNode}
+		for depth := 1; depth <= edgePattern.MaxDepth && len(frontier) > 0; depth++ {
+			var next []*types.Node
+			for _, cur := range frontier {
+				for _, nbID := range qe.neighborIDs(storage, cur.ID, edgePattern, inSubgraph) {
+					if visited[nbID] {
+						continue
+					}
+					visited[nbID] = true
+					nb, ok := storage.GetNode(nbID)
+					if !ok {
+						continue
+					}
+					next = append(next, nb) // traverse through, even past MinDepth or label mismatch
+					if depth < minDepth || emitted[nbID] {
+						continue
+					}
+					if expectedLabel != "" && nb.Label != expectedLabel {
+						continue
+					}
+					emitted[nbID] = true
+					newRow := copyMap(row)
+					newRow[toVar] = nb
+					expanded = append(expanded, newRow)
+				}
+			}
+			frontier = next
+		}
+	}
+
+	return expanded
+}
+
+// neighborIDs lists adjacent node IDs honoring direction, kind (empty = any)
+// and edge filters; with inSubgraph != nil, nodes outside it are skipped.
+func (qe *DefaultQueryEngine) neighborIDs(
+	storage storage.StorageEngine,
+	nodeID string,
+	edgePattern *query.PatternEdge,
+	inSubgraph map[string]bool,
+) []string {
+	var ids []string
+	seen := map[string]bool{} // ponytail: per-node dedup; Both union collapses here
+	collect := func(edges []*types.Edge, target func(*types.Edge) string) {
+		for _, e := range edges {
+			if edgePattern.Kind != "" && e.Kind != edgePattern.Kind {
+				continue
+			}
+			if !qe.matchEdgeFilters(e, edgePattern.Filters) {
+				continue
+			}
+			id := target(e)
+			if seen[id] {
+				continue
+			}
+			seen[id] = true
+			if inSubgraph != nil && !inSubgraph[id] {
+				continue
+			}
+			ids = append(ids, id)
+		}
+	}
+	switch edgePattern.Direction {
+	case query.In:
+		collect(storage.GetEdgesTo(nodeID), func(e *types.Edge) string { return e.From })
+	case query.Both:
+		collect(storage.GetEdgesFrom(nodeID), func(e *types.Edge) string { return e.To })
+		collect(storage.GetEdgesTo(nodeID), func(e *types.Edge) string { return e.From })
+	default: // query.Out
+		collect(storage.GetEdgesFrom(nodeID), func(e *types.Edge) string { return e.To })
+	}
+	return ids
 }
 
 func (qe *DefaultQueryEngine) matchEdgeFilters(edge *types.Edge, filters []query.Filter) bool {

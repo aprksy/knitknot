@@ -145,6 +145,60 @@ func (b *Builder) FollowHas(rel, value string, dir query.Direction) *Builder {
 	return b
 }
 
+// Reach adds a bounded traversal along rel from the last matched variable:
+// every node reachable in 1..depth hops gets bound to a new var.
+func (b *Builder) Reach(rel string, dir query.Direction, maxDepth ...int) *Builder {
+	v := b.freshVar()
+
+	label, _ := b.verbTarget(rel)
+	b.MatchNode(v, label)
+	b.plan.Edges = append(b.plan.Edges, &query.PatternEdge{
+		From:      b.lastVar,
+		To:        v,
+		Kind:      rel,
+		Direction: dir,
+		MinDepth:  1,
+		MaxDepth:  reachDepth(maxDepth),
+	})
+	b.lastVar = v
+
+	return b
+}
+
+// ReachHas is Reach plus a target name filter on the reached nodes.
+func (b *Builder) ReachHas(rel, value string, dir query.Direction, maxDepth ...int) *Builder {
+	b.Reach(rel, dir, maxDepth...)
+
+	_, matchOn := b.verbTarget(rel)
+	b.Where(b.lastVar+"."+matchOn, "=", value)
+
+	return b
+}
+
+func (b *Builder) verbTarget(rel string) (label, matchOn string) {
+	verb, ok := b.engine.verbs.Lookup(rel)
+	if !ok {
+		return "", types.DefaultMatchProperty
+	}
+	if verb.MatchOn == "" {
+		return verb.TargetLabel, types.DefaultMatchProperty
+	}
+	return verb.TargetLabel, verb.MatchOn
+}
+
+func reachDepth(maxDepth []int) int {
+	depth := query.DefaultReachDepth
+	if len(maxDepth) > 0 {
+		depth = maxDepth[0]
+	}
+	if depth < 1 {
+		depth = 1
+	}
+	if depth > query.MaxReachDepth {
+		depth = query.MaxReachDepth
+	}
+	return depth
+}
 func (b *Builder) WhereEdge(field, op string, value any) *Builder {
 	if len(b.plan.Edges) == 0 {
 		return b

@@ -166,6 +166,31 @@ func printExplain(queryStr string, ast *dsl.Query) {
 				continue
 			}
 			fmt.Printf("    %d. Follow '%s' edges to nodes with value '%s' (%s)\n", i+1, rel.Value, val.Value, explainDir(method.Arguments[1:]))
+		case "Reach":
+			if len(method.Arguments) < 1 || len(method.Arguments) > 3 {
+				fmt.Printf("    %d. Reach (unrecognized arg)\n", i+1)
+				continue
+			}
+			rel, ok := method.Arguments[0].(*dsl.StringLiteral)
+			if !ok {
+				fmt.Printf("    %d. Reach (unrecognized arg)\n", i+1)
+				continue
+			}
+			dir, depth := explainReachOpts(method.Arguments[1:])
+			fmt.Printf("    %d. Reach up to %s hops along '%s' edges (%s)\n", i+1, depth, rel.Value, dir)
+		case "ReachHas":
+			if len(method.Arguments) < 2 || len(method.Arguments) > 4 {
+				fmt.Printf("    %d. ReachHas (unrecognized arg)\n", i+1)
+				continue
+			}
+			rel, ok1 := method.Arguments[0].(*dsl.StringLiteral)
+			val, ok2 := method.Arguments[1].(*dsl.StringLiteral)
+			if !ok1 || !ok2 {
+				fmt.Printf("    %d. ReachHas (unrecognized arg)\n", i+1)
+				continue
+			}
+			dir, depth := explainReachOpts(method.Arguments[2:])
+			fmt.Printf("    %d. Reach up to %s hops along '%s' edges to nodes with value '%s' (%s)\n", i+1, depth, rel.Value, val.Value, dir)
 		case "Where", "WhereEdge":
 			if len(method.Arguments) < 3 { // fix: H5
 				fmt.Printf("    %d. %s (unrecognized arg)\n", i+1, method.Name.Value) // fix: H5
@@ -229,6 +254,44 @@ func parseDirection(s string) (query.Direction, error) {
 	default:
 		return query.Out, fmt.Errorf("direction must be 'out', 'in' or 'both', got %q", s)
 	}
+}
+
+// parseReachOpts parses the optional trailing [direction, depth] args of
+// Reach/ReachHas. Depth omitted ⇒ empty slice (builder default applies).
+func parseReachOpts(args []dsl.Expression) (query.Direction, []int, error) {
+	dir := query.Out
+	var depth []int
+	for _, a := range args {
+		switch v := a.(type) {
+		case *dsl.StringLiteral:
+			d, err := parseDirection(v.Value)
+			if err != nil {
+				return dir, nil, err
+			}
+			dir = d
+		case *dsl.NumberLiteral:
+			depth = []int{v.Value}
+		default:
+			return dir, nil, fmt.Errorf("reach options must be a direction string and a depth number")
+		}
+	}
+	return dir, depth, nil
+}
+
+func explainReachOpts(args []dsl.Expression) (dir, depth string) {
+	dir, depth = "out", "default"
+	for _, a := range args {
+		switch v := a.(type) {
+		case *dsl.StringLiteral:
+			switch strings.ToLower(v.Value) {
+			case "in", "out", "both":
+				dir = strings.ToLower(v.Value)
+			}
+		case *dsl.NumberLiteral:
+			depth = fmt.Sprintf("%d", v.Value)
+		}
+	}
+	return dir, depth
 }
 
 func ApplyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
@@ -356,6 +419,39 @@ func ApplyAST(engine *graph.GraphEngine, q *dsl.Query) (*graph.Builder, error) {
 			}
 			if builder != nil {
 				builder = builder.FollowHas(rel.Value, val.Value, dir)
+			}
+
+		case "Reach":
+			if len(method.Arguments) < 1 || len(method.Arguments) > 3 {
+				return nil, fmt.Errorf("reach takes 1 to 3 args: rel and optional direction and depth")
+			}
+			rel, ok := method.Arguments[0].(*dsl.StringLiteral)
+			if !ok {
+				return nil, fmt.Errorf("reach requires rel string")
+			}
+			dir, depth, err := parseReachOpts(method.Arguments[1:])
+			if err != nil {
+				return nil, err
+			}
+			if builder != nil {
+				builder = builder.Reach(rel.Value, dir, depth...)
+			}
+
+		case "ReachHas":
+			if len(method.Arguments) < 2 || len(method.Arguments) > 4 {
+				return nil, fmt.Errorf("reachhas takes 2 to 4 args: rel, value and optional direction and depth")
+			}
+			rel, ok1 := method.Arguments[0].(*dsl.StringLiteral)
+			val, ok2 := method.Arguments[1].(*dsl.StringLiteral)
+			if !ok1 || !ok2 {
+				return nil, fmt.Errorf("reachhas requires rel and value strings")
+			}
+			dir, depth, err := parseReachOpts(method.Arguments[2:])
+			if err != nil {
+				return nil, err
+			}
+			if builder != nil {
+				builder = builder.ReachHas(rel.Value, val.Value, dir, depth...)
 			}
 
 		case "In": // fix: H3
