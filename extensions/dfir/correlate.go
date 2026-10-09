@@ -34,21 +34,7 @@ type Match struct {
 // are skipped. One Match is returned per case observable that hit, in
 // input order; a miss yields no entry. Every ref list is deduped by node.
 func Correlate(s storage.StorageEngine, caseObs []CaseObservable) []Match {
-	byKey := make(map[string][]*types.Node)
-	for _, n := range s.GetNodesByLabel(LabelIndicator) {
-		pat, _ := n.Props["pattern"].(string)
-		if pat == "" {
-			continue
-		}
-		obs, ok := ExtractObservables(pat)
-		if !ok {
-			continue
-		}
-		for _, o := range obs {
-			k := o.Key()
-			byKey[k] = append(byKey[k], n)
-		}
-	}
+	byKey := indicatorIndex(s)
 
 	var out []Match
 	for _, c := range caseObs {
