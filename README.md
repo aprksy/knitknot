@@ -50,6 +50,7 @@ dot -Tsvg graph.dot > graph.svg
 - [Domain Extensions](docs/domains/README.md)
 - [CTI Analysis — TI & TH tutorials](docs/cti/README.md)
 - [DFIR Case × CTI Correlation](docs/domains/dfir/GUIDE.md)
+- [DFIR Evidence Round-Trip (Jupyter producer)](docs/domains/dfir/ROUNDTRIP.md)
 - [Contribute](docs/CONTRIBUTING.md)
 - [Current Status](STATUS.md)
 
