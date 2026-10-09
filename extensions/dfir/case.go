@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -33,6 +34,11 @@ type CaseEntity struct {
 	Kind    string `json:"kind"` // canonical Observable.Type, or EntityTechnique
 	Value   string `json:"value"`
 	Context string `json:"context,omitempty"` // optional, carried through to the report
+	// Order is the evidence sequence key (ascending = earlier): the `order`
+	// column value when the header names one, else the zero-based data-row
+	// index (blank lines skipped). An empty `order` cell falls back to the
+	// row index too.
+	Order int `json:"order"`
 }
 
 // EntityTechnique is the CaseEntity.Kind for ATT&CK technique annotations
@@ -44,6 +50,11 @@ const EntityTechnique = "technique"
 // Blank lines are skipped. The type column accepts every ParseCaseCSV alias
 // plus `technique`. Unknown types and rows missing type or value are errors
 // naming the row — case data is never silently dropped.
+//
+// An optional header-named `order` column carries the evidence sequence
+// (integer, ascending = earlier); a non-numeric value is a row-named error.
+// Absent column (or empty cell) falls back to the zero-based data-row
+// index, so existing `type,value[,context]` files are unaffected.
 func ParseCaseEntities(r io.Reader) ([]CaseEntity, error) {
 	cr := csv.NewReader(r)
 	cr.FieldsPerRecord = -1 // tolerate ragged rows; we validate by header index
@@ -53,7 +64,7 @@ func ParseCaseEntities(r io.Reader) ([]CaseEntity, error) {
 	if err != nil {
 		return nil, fmt.Errorf("case csv: read header: %w", err)
 	}
-	typeIdx, valueIdx, ctxIdx := -1, -1, -1
+	typeIdx, valueIdx, ctxIdx, orderIdx := -1, -1, -1, -1
 	for i, h := range header {
 		switch strings.ToLower(strings.TrimSpace(h)) {
 		case "type":
@@ -62,6 +73,8 @@ func ParseCaseEntities(r io.Reader) ([]CaseEntity, error) {
 			valueIdx = i
 		case "context":
 			ctxIdx = i
+		case "order":
+			orderIdx = i
 		}
 	}
 	if typeIdx < 0 || valueIdx < 0 {
@@ -94,10 +107,21 @@ func ParseCaseEntities(r io.Reader) ([]CaseEntity, error) {
 		if ctxIdx >= 0 {
 			ctx = fieldAt(rec, ctxIdx)
 		}
+		order := len(out) // row-order fallback: zero-based data-row index
+		if orderIdx >= 0 {
+			if raw := strings.TrimSpace(fieldAt(rec, orderIdx)); raw != "" {
+				n, err := strconv.Atoi(raw)
+				if err != nil {
+					return nil, fmt.Errorf("case csv row %d: bad order %q: want an integer", row, raw)
+				}
+				order = n
+			}
+		}
 		out = append(out, CaseEntity{
 			Kind:    kind,
 			Value:   strings.TrimSpace(val),
 			Context: strings.TrimSpace(ctx),
+			Order:   order,
 		})
 	}
 }
@@ -119,6 +143,8 @@ func caseEntityKind(token string) (string, bool) {
 //
 // Technique rows are skipped: the correlate/workspace path matches
 // observables only. Use ParseCaseEntities when technique evidence matters.
+// An `order` column, when present, parses (and validates) the same way but
+// is ignored here.
 func ParseCaseCSV(r io.Reader) ([]CaseObservable, error) {
 	entities, err := ParseCaseEntities(r)
 	if err != nil {

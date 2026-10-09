@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
@@ -103,9 +104,28 @@ func formatCoverageText(rep dfir.CoverageReport) string {
 		fmt.Fprintf(&b, "%s %d/%d %s\n", d.Label, d.Covered, d.Total, coveragePct(d.Covered, d.Total))
 		fmt.Fprintf(&b, "  matched: %s\n", coverageNames(d.Matched))
 		fmt.Fprintf(&b, "  unmatched: %s\n", coverageNames(d.Unmatched))
+		if d.Label == "attack-pattern" {
+			fmt.Fprintf(&b, "  %s\n", formatOrderedLine(d))
+			if d.OrderedCoverage != nil {
+				fmt.Fprintf(&b, "  expected: %s\n", coverageNames(d.ExpectedOrder))
+				fmt.Fprintf(&b, "  actual: %s\n", coverageNames(d.ActualOrder))
+			}
+		}
 	}
 	fmt.Fprintf(&b, "Inferred context: %d nodes\n", len(rep.Inferred))
 	return b.String()
+}
+
+// formatOrderedLine renders the attack-pattern sequence view: ordered
+// LIS/N and its percent, or n/a with N when ranks or evidence are
+// unavailable. LIS is recovered from the fraction by rounding, exact for
+// any real N (float error is far below half a unit).
+func formatOrderedLine(d dfir.DimensionCoverage) string {
+	if d.OrderedCoverage == nil {
+		return fmt.Sprintf("ordered n/a (N=%d)", d.OrderedN)
+	}
+	lis := int(math.Round(*d.OrderedCoverage * float64(d.OrderedN)))
+	return fmt.Sprintf("ordered %d/%d %s", lis, d.OrderedN, coveragePct(lis, d.OrderedN))
 }
 
 func coverageNames(refs []dfir.NodeRef) string {

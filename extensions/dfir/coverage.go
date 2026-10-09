@@ -14,6 +14,9 @@ import (
 // domain extension (see vocab.go).
 const (
 	LabelAttackPattern = "attack-pattern"
+	LabelTactic        = "x-mitre-tactic"
+
+	PropRank = "rank"
 
 	EdgeCommunicatesWith = "communicates-with"
 	EdgeTargets          = "targets"
@@ -47,12 +50,24 @@ var coverageEdgeKinds = map[string]bool{
 
 // DimensionCoverage is one label's coverage fraction: Covered of Total
 // pattern nodes directly evidenced, with the matched/unmatched members.
+//
+// On the attack-pattern dimension only, OrderedCoverage adds the sequence
+// view: LIS of tactic ranks in evidence order over N ranked covered
+// techniques. It is always reported: nil with OrderedN 0 when unavailable
+// (no covered techniques, or none ranked — e.g. a pattern imported without
+// --tactics), never fabricated. ActualOrder is the covered techniques in
+// evidence order, ExpectedOrder in tactic-rank order. N=1 is trivially in
+// order — read OrderedCoverage alongside OrderedN, not alone.
 type DimensionCoverage struct {
-	Label     string    `json:"label"`
-	Covered   int       `json:"covered"`
-	Total     int       `json:"total"`
-	Matched   []NodeRef `json:"matched"`
-	Unmatched []NodeRef `json:"unmatched"`
+	Label           string    `json:"label"`
+	Covered         int       `json:"covered"`
+	Total           int       `json:"total"`
+	Matched         []NodeRef `json:"matched"`
+	Unmatched       []NodeRef `json:"unmatched"`
+	OrderedCoverage *float64  `json:"ordered_coverage,omitempty"`
+	OrderedN        int       `json:"ordered_n"`
+	ActualOrder     []NodeRef `json:"actual_order,omitempty"`
+	ExpectedOrder   []NodeRef `json:"expected_order,omitempty"`
 }
 
 // CoverageReport is the coverage of one reference target by case evidence.
@@ -176,9 +191,13 @@ func Coverage(s storage.StorageEngine, target *types.Node, entities []CaseEntity
 		for _, n := range direct[dim] {
 			dirIDs[n.ID] = true
 		}
+		var matchedNodes []*types.Node // attack-pattern only: for ordered coverage
 		for _, n := range pattern[dim] {
 			if dirIDs[n.ID] {
 				dc.Matched = append(dc.Matched, ref(n))
+				if dim == LabelAttackPattern {
+					matchedNodes = append(matchedNodes, n)
+				}
 			} else {
 				dc.Unmatched = append(dc.Unmatched, ref(n))
 			}
@@ -187,6 +206,9 @@ func Coverage(s storage.StorageEngine, target *types.Node, entities []CaseEntity
 		dc.Total = len(pattern[dim])
 		sortNodeRefs(dc.Matched)
 		sortNodeRefs(dc.Unmatched)
+		if dim == LabelAttackPattern {
+			fillOrderedCoverage(s, &dc, matchedNodes, entities)
+		}
 		rep.Dimensions = append(rep.Dimensions, dc)
 	}
 
@@ -198,6 +220,146 @@ func Coverage(s storage.StorageEngine, target *types.Node, entities []CaseEntity
 	}
 	sortNodeRefs(rep.Inferred)
 	return rep, nil
+}
+
+// techniqueRank returns the tactic rank of an attack-pattern node via its
+// has-tactic edge(s); min rank when multi-tactic; ok=false when unranked.
+func techniqueRank(s storage.StorageEngine, ap *types.Node) (rank int, ok bool) {
+	for _, e := range s.GetEdgesFrom(ap.ID) {
+		if e.Kind != EdgeHasTactic {
+			continue
+		}
+		tac, found := s.GetNode(e.To)
+		if !found {
+			continue
+		}
+		r, isNum := asRank(tac.Props[PropRank])
+		if !isNum {
+			continue
+		}
+		if !ok || r < rank {
+			rank, ok = r, true
+		}
+	}
+	return rank, ok
+}
+
+// asRank reads a rank prop across the numeric shapes storage can hold
+// (int from import, float64 from JSON, int64/float32/gob siblings).
+func asRank(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int8:
+		return int(n), true
+	case int16:
+		return int(n), true
+	case int32:
+		return int(n), true
+	case int64:
+		return int(n), true
+	case uint:
+		return int(n), true
+	case float32:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+// fillOrderedCoverage computes the attack-pattern dimension's sequence view:
+// the covered techniques that carry a tactic rank, ordered by evidence
+// Order, scored as LIS(rank sequence)/N (non-decreasing: equal ranks are
+// not violations). Unranked techniques stay in set coverage but leave
+// ordering. N=0 (nothing covered, or nothing ranked) leaves OrderedCoverage
+// nil — n/a, never fabricated. Ties in evidence order break by name, then
+// ID, so the report is deterministic.
+func fillOrderedCoverage(s storage.StorageEngine, dc *DimensionCoverage, matched []*types.Node, entities []CaseEntity) {
+	// Evidence order per node: min Order among technique entities naming
+	// it (case-insensitive, the same equality DirectEvidence uses).
+	orderOf := make(map[string]int)
+	for _, e := range entities {
+		if e.Kind != EntityTechnique {
+			continue
+		}
+		for _, n := range matched {
+			name, _ := n.Props["name"].(string)
+			if !strings.EqualFold(name, e.Value) {
+				continue
+			}
+			if cur, seen := orderOf[n.ID]; !seen || e.Order < cur {
+				orderOf[n.ID] = e.Order
+			}
+		}
+	}
+
+	type rankedTech struct {
+		node        *types.Node
+		order, rank int
+	}
+	var rs []rankedTech
+	for _, n := range matched {
+		r, ok := techniqueRank(s, n)
+		if !ok {
+			continue
+		}
+		rs = append(rs, rankedTech{node: n, order: orderOf[n.ID], rank: r})
+	}
+	dc.OrderedN = len(rs)
+	if len(rs) == 0 {
+		return
+	}
+	byEvidence := append([]rankedTech(nil), rs...)
+	sort.Slice(byEvidence, func(i, j int) bool {
+		if byEvidence[i].order != byEvidence[j].order {
+			return byEvidence[i].order < byEvidence[j].order
+		}
+		return refLess(ref(byEvidence[i].node), ref(byEvidence[j].node))
+	})
+	byRank := append([]rankedTech(nil), rs...)
+	sort.Slice(byRank, func(i, j int) bool {
+		if byRank[i].rank != byRank[j].rank {
+			return byRank[i].rank < byRank[j].rank
+		}
+		return refLess(ref(byRank[i].node), ref(byRank[j].node))
+	})
+	seq := make([]int, len(byEvidence))
+	for i, r := range byEvidence {
+		seq[i] = r.rank
+	}
+	f := float64(lisLength(seq)) / float64(len(rs))
+	dc.OrderedCoverage = &f
+	for _, r := range byEvidence {
+		dc.ActualOrder = append(dc.ActualOrder, ref(r.node))
+	}
+	for _, r := range byRank {
+		dc.ExpectedOrder = append(dc.ExpectedOrder, ref(r.node))
+	}
+}
+
+// lisLength is the longest non-decreasing subsequence length (patience
+// piles, O(n log n)). Equal values extend a pile, so equal ranks never
+// count as violations.
+func lisLength(xs []int) int {
+	var piles []int
+	for _, x := range xs {
+		i := sort.Search(len(piles), func(i int) bool { return piles[i] > x })
+		if i == len(piles) {
+			piles = append(piles, x)
+		} else {
+			piles[i] = x
+		}
+	}
+	return len(piles)
+}
+
+func refLess(a, b NodeRef) bool {
+	if a.Name != b.Name {
+		return a.Name < b.Name
+	}
+	return a.ID < b.ID
 }
 
 // ResolveTarget finds the single node with the given label and name prop.

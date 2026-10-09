@@ -1,7 +1,9 @@
 package dfir
 
 import (
+	"bytes"
 	"context"
+	"os"
 	"strings"
 	"testing"
 
@@ -317,9 +319,9 @@ func TestParseCaseEntities(t *testing.T) {
 			t.Fatalf("ParseCaseEntities: %v", err)
 		}
 		want := []CaseEntity{
-			{Kind: "file-hash-sha256", Value: "ABCDEF", Context: "hash hit"},
-			{Kind: "ipv4", Value: "1.2.3.4"},
-			{Kind: "technique", Value: "Credential Dumping", Context: "analyst note"},
+			{Kind: "file-hash-sha256", Value: "ABCDEF", Context: "hash hit", Order: 0},
+			{Kind: "ipv4", Value: "1.2.3.4", Order: 1},
+			{Kind: "technique", Value: "Credential Dumping", Context: "analyst note", Order: 2},
 		}
 		if len(got) != len(want) {
 			t.Fatalf("got %v, want %v", got, want)
@@ -362,6 +364,323 @@ func TestParseCaseEntities(t *testing.T) {
 		}
 		if len(got) != 1 || got[0].Type != "domain" {
 			t.Errorf("got %+v, want only the domain row", got)
+		}
+	})
+}
+
+// seedOrderedGraph imports testdata/ordered-bundle.json: an intrusion-set
+// ("Ordered APT") over a campaign/malware chain with three ranked
+// techniques (Command Shell=1, Credential Dumping=2, Remote Desktop=3) and
+// one unranked technique (Unphased Tool). tactics=false skips --tactics, so
+// no ranks or has-tactic edges exist.
+func seedOrderedGraph(t *testing.T, tactics bool) *inmem.Storage {
+	t.Helper()
+	data, err := os.ReadFile("testdata/ordered-bundle.json")
+	if err != nil {
+		t.Fatalf("read ordered fixture: %v", err)
+	}
+	ic := extension.ImportContext{Source: "ordered-fixture"}
+	if tactics {
+		ic.MaterializeTactics = true
+	}
+	s := inmem.New()
+	if err := cti.NewSTIXImporter().Import(context.Background(), ic, s, types.NewVerbRegistry(), bytes.NewReader(data)); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	return s
+}
+
+func orderedTarget(t *testing.T, s *inmem.Storage) *types.Node {
+	t.Helper()
+	return mustResolve(t, s, "intrusion-set", "Ordered APT")
+}
+
+func orderedValue(t *testing.T, rep CoverageReport) (float64, int) {
+	t.Helper()
+	ap := dimByLabel(rep, "attack-pattern")
+	if ap.OrderedCoverage == nil {
+		t.Fatalf("ordered_coverage is nil (N=%d), want a value", ap.OrderedN)
+	}
+	return *ap.OrderedCoverage, ap.OrderedN
+}
+
+func TestTechniqueRank(t *testing.T) {
+	s := inmem.New()
+	ap, err := s.AddNode("attack-pattern", map[string]any{"name": "Multi"})
+	if err != nil {
+		t.Fatalf("AddNode: %v", err)
+	}
+	lo, err := s.AddNode("x-mitre-tactic", map[string]any{"x_mitre_shortname": "execution", "rank": 4})
+	if err != nil {
+		t.Fatalf("AddNode: %v", err)
+	}
+	hi, err := s.AddNode("x-mitre-tactic", map[string]any{"x_mitre_shortname": "persistence", "rank": float64(5)})
+	if err != nil {
+		t.Fatalf("AddNode: %v", err)
+	}
+	if err := s.AddEdge(ap, lo, "has-tactic", nil); err != nil {
+		t.Fatalf("AddEdge: %v", err)
+	}
+	if err := s.AddEdge(ap, hi, "has-tactic", nil); err != nil {
+		t.Fatalf("AddEdge: %v", err)
+	}
+	n, _ := s.GetNode(ap)
+	if r, ok := techniqueRank(s, n); !ok || r != 4 {
+		t.Errorf("multi-tactic rank = (%d, %v), want (4, true)", r, ok)
+	}
+
+	plain, err := s.AddNode("attack-pattern", map[string]any{"name": "Unphased"})
+	if err != nil {
+		t.Fatalf("AddNode: %v", err)
+	}
+	pn, _ := s.GetNode(plain)
+	if _, ok := techniqueRank(s, pn); ok {
+		t.Error("unlinked technique: ok = true, want false")
+	}
+}
+
+func TestLISLength(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		seq  []int
+		want int
+	}{
+		{"empty", nil, 0},
+		{"single", []int{2}, 1},
+		{"in order", []int{1, 2, 3}, 3},
+		{"reversed", []int{3, 2, 1}, 1},
+		{"partial", []int{3, 1, 2}, 2},
+		{"equal ranks", []int{1, 1, 2, 2}, 4}, // non-decreasing: ties are not violations
+		{"equal ends", []int{2, 1, 1}, 2},
+	} {
+		if got := lisLength(tc.seq); got != tc.want {
+			t.Errorf("%s: lisLength(%v) = %d, want %d", tc.name, tc.seq, got, tc.want)
+		}
+	}
+}
+
+func TestOrderedCoverageInOrder(t *testing.T) {
+	s := seedOrderedGraph(t, true)
+	rep, err := Coverage(s, orderedTarget(t, s), []CaseEntity{
+		{Kind: EntityTechnique, Value: "Command Shell", Order: 1},
+		{Kind: EntityTechnique, Value: "Credential Dumping", Order: 2},
+		{Kind: EntityTechnique, Value: "Remote Desktop", Order: 3},
+	}, 3)
+	if err != nil {
+		t.Fatalf("Coverage: %v", err)
+	}
+	got, n := orderedValue(t, rep)
+	if got != 1.0 || n != 3 {
+		t.Errorf("ordered = %v (N=%d), want 1.0 (N=3)", got, n)
+	}
+	ap := dimByLabel(rep, "attack-pattern")
+	if names := refNames(ap.ActualOrder); !equalStrings(names, []string{"Command Shell", "Credential Dumping", "Remote Desktop"}) {
+		t.Errorf("actual = %v", names)
+	}
+	if names := refNames(ap.ExpectedOrder); !equalStrings(names, []string{"Command Shell", "Credential Dumping", "Remote Desktop"}) {
+		t.Errorf("expected = %v", names)
+	}
+}
+
+func TestOrderedCoverageViolated(t *testing.T) {
+	s := seedOrderedGraph(t, true)
+	t.Run("reversed", func(t *testing.T) {
+		rep, err := Coverage(s, orderedTarget(t, s), []CaseEntity{
+			{Kind: EntityTechnique, Value: "Remote Desktop", Order: 1},
+			{Kind: EntityTechnique, Value: "Credential Dumping", Order: 2},
+			{Kind: EntityTechnique, Value: "Command Shell", Order: 3},
+		}, 3)
+		if err != nil {
+			t.Fatalf("Coverage: %v", err)
+		}
+		got, n := orderedValue(t, rep)
+		if want := float64(1) / float64(3); got != want || n != 3 {
+			t.Errorf("ordered = %v (N=%d), want %v (N=3)", got, n, want)
+		}
+	})
+	t.Run("partial", func(t *testing.T) {
+		rep, err := Coverage(s, orderedTarget(t, s), []CaseEntity{
+			{Kind: EntityTechnique, Value: "Remote Desktop", Order: 1},
+			{Kind: EntityTechnique, Value: "Command Shell", Order: 2},
+			{Kind: EntityTechnique, Value: "Credential Dumping", Order: 3},
+		}, 3)
+		if err != nil {
+			t.Fatalf("Coverage: %v", err)
+		}
+		got, n := orderedValue(t, rep)
+		if want := float64(2) / float64(3); got != want || n != 3 {
+			t.Errorf("ordered = %v (N=%d), want %v (N=3)", got, n, want)
+		}
+		ap := dimByLabel(rep, "attack-pattern")
+		if names := refNames(ap.ActualOrder); !equalStrings(names, []string{"Remote Desktop", "Command Shell", "Credential Dumping"}) {
+			t.Errorf("actual = %v, want evidence order", names)
+		}
+		if names := refNames(ap.ExpectedOrder); !equalStrings(names, []string{"Command Shell", "Credential Dumping", "Remote Desktop"}) {
+			t.Errorf("expected = %v, want rank order", names)
+		}
+	})
+}
+
+func TestOrderedCoverageUnrankedExcluded(t *testing.T) {
+	s := seedOrderedGraph(t, true)
+	rep, err := Coverage(s, orderedTarget(t, s), []CaseEntity{
+		{Kind: EntityTechnique, Value: "Command Shell", Order: 1},
+		{Kind: EntityTechnique, Value: "Unphased Tool", Order: 2},
+		{Kind: EntityTechnique, Value: "Credential Dumping", Order: 3},
+		{Kind: EntityTechnique, Value: "Remote Desktop", Order: 4},
+	}, 3)
+	if err != nil {
+		t.Fatalf("Coverage: %v", err)
+	}
+	ap := dimByLabel(rep, "attack-pattern")
+	if ap.Covered != 4 || ap.Total != 4 {
+		t.Errorf("set coverage = %d/%d, want 4/4 (unranked still counts)", ap.Covered, ap.Total)
+	}
+	if ap.OrderedCoverage == nil || *ap.OrderedCoverage != 1.0 || ap.OrderedN != 3 {
+		t.Errorf("ordered = %v (N=%d), want 1.0 (N=3, unranked excluded)", ap.OrderedCoverage, ap.OrderedN)
+	}
+	for _, r := range ap.ActualOrder {
+		if r.Name == "Unphased Tool" {
+			t.Errorf("actual order contains unranked %q", r.Name)
+		}
+	}
+}
+
+func TestOrderedCoverageOrderColumn(t *testing.T) {
+	s := seedOrderedGraph(t, true)
+	target := orderedTarget(t, s)
+	t.Run("column beats row position", func(t *testing.T) {
+		// Rows list Remote Desktop first, but the order column says it
+		// came last: evidence order is Command, Credential, Remote.
+		entities, err := ParseCaseEntities(strings.NewReader(
+			"type,value,order\ntechnique,Remote Desktop,3\ntechnique,Command Shell,1\ntechnique,Credential Dumping,2\n"))
+		if err != nil {
+			t.Fatalf("ParseCaseEntities: %v", err)
+		}
+		rep, err := Coverage(s, target, entities, 3)
+		if err != nil {
+			t.Fatalf("Coverage: %v", err)
+		}
+		if got, n := orderedValue(t, rep); got != 1.0 || n != 3 {
+			t.Errorf("ordered = %v (N=%d), want 1.0 (N=3)", got, n)
+		}
+	})
+	t.Run("row-order fallback", func(t *testing.T) {
+		// No order column: row position is the sequence, so this is
+		// fully reversed.
+		entities, err := ParseCaseEntities(strings.NewReader(
+			"type,value\ntechnique,Remote Desktop\ntechnique,Credential Dumping\ntechnique,Command Shell\n"))
+		if err != nil {
+			t.Fatalf("ParseCaseEntities: %v", err)
+		}
+		rep, err := Coverage(s, target, entities, 3)
+		if err != nil {
+			t.Fatalf("Coverage: %v", err)
+		}
+		if got, n := orderedValue(t, rep); got != float64(1)/float64(3) || n != 3 {
+			t.Errorf("ordered = %v (N=%d), want 1/3 (N=3)", got, n)
+		}
+	})
+}
+
+func TestOrderedCoverageNA(t *testing.T) {
+	t.Run("no tactics materialized", func(t *testing.T) {
+		s := seedOrderedGraph(t, false)
+		rep, err := Coverage(s, orderedTarget(t, s), []CaseEntity{
+			{Kind: EntityTechnique, Value: "Command Shell", Order: 1},
+			{Kind: EntityTechnique, Value: "Remote Desktop", Order: 2},
+		}, 3)
+		if err != nil {
+			t.Fatalf("Coverage: %v", err)
+		}
+		ap := dimByLabel(rep, "attack-pattern")
+		if ap.OrderedCoverage != nil || ap.OrderedN != 0 {
+			t.Errorf("ordered = %v (N=%d), want nil (N=0)", ap.OrderedCoverage, ap.OrderedN)
+		}
+		if ap.Covered != 2 {
+			t.Errorf("set coverage = %d, want 2 (ordering n/a never removes set coverage)", ap.Covered)
+		}
+	})
+	t.Run("no technique evidence", func(t *testing.T) {
+		s := seedOrderedGraph(t, true)
+		rep, err := Coverage(s, orderedTarget(t, s), []CaseEntity{
+			{Kind: "domain", Value: "ordered-c2.example.com"},
+		}, 3)
+		if err != nil {
+			t.Fatalf("Coverage: %v", err)
+		}
+		ap := dimByLabel(rep, "attack-pattern")
+		if ap.OrderedCoverage != nil || ap.OrderedN != 0 {
+			t.Errorf("ordered = %v (N=%d), want nil (N=0)", ap.OrderedCoverage, ap.OrderedN)
+		}
+	})
+	t.Run("indicator dimension never ordered", func(t *testing.T) {
+		s := seedOrderedGraph(t, true)
+		rep, err := Coverage(s, orderedTarget(t, s), []CaseEntity{
+			{Kind: "domain", Value: "ordered-c2.example.com"},
+			{Kind: EntityTechnique, Value: "Command Shell", Order: 1},
+		}, 3)
+		if err != nil {
+			t.Fatalf("Coverage: %v", err)
+		}
+		if ind := dimByLabel(rep, "indicator"); ind.OrderedCoverage != nil || ind.OrderedN != 0 {
+			t.Errorf("indicator ordered = %v (N=%d), want nil (N=0)", ind.OrderedCoverage, ind.OrderedN)
+		}
+	})
+}
+
+func TestParseCaseEntitiesOrder(t *testing.T) {
+	t.Run("explicit column", func(t *testing.T) {
+		got, err := ParseCaseEntities(strings.NewReader("type,value,order\ntechnique,B,30\ntechnique,A,7\n"))
+		if err != nil {
+			t.Fatalf("ParseCaseEntities: %v", err)
+		}
+		if len(got) != 2 || got[0].Order != 30 || got[1].Order != 7 {
+			t.Errorf("got %+v, want orders [30 7]", got)
+		}
+	})
+
+	t.Run("absent column falls back to row index", func(t *testing.T) {
+		got, err := ParseCaseEntities(strings.NewReader("type,value\ndomain,a.example\ntechnique,B\n"))
+		if err != nil {
+			t.Fatalf("ParseCaseEntities: %v", err)
+		}
+		if len(got) != 2 || got[0].Order != 0 || got[1].Order != 1 {
+			t.Errorf("got %+v, want orders [0 1]", got)
+		}
+	})
+
+	t.Run("empty cell falls back to row index", func(t *testing.T) {
+		got, err := ParseCaseEntities(strings.NewReader("type,value,order\ntechnique,A,\ntechnique,B,5\n"))
+		if err != nil {
+			t.Fatalf("ParseCaseEntities: %v", err)
+		}
+		if len(got) != 2 || got[0].Order != 0 || got[1].Order != 5 {
+			t.Errorf("got %+v, want orders [0 5]", got)
+		}
+	})
+
+	t.Run("bad order errors with row", func(t *testing.T) {
+		_, err := ParseCaseEntities(strings.NewReader("type,value,order\ntechnique,A,first\n"))
+		if err == nil || !strings.Contains(err.Error(), "row 2") || !strings.Contains(err.Error(), "first") {
+			t.Errorf("err = %v, want row-and-value naming error", err)
+		}
+	})
+
+	t.Run("legacy files unaffected", func(t *testing.T) {
+		got, err := ParseCaseEntities(strings.NewReader("type,value,context\ndomain,example.com,seen\n"))
+		if err != nil {
+			t.Fatalf("ParseCaseEntities: %v", err)
+		}
+		if len(got) != 1 || got[0].Order != 0 || got[0].Context != "seen" {
+			t.Errorf("got %+v, want one row with order 0", got)
+		}
+		obs, err := ParseCaseCSV(strings.NewReader("type,value,order\ndomain,example.com,9\n"))
+		if err != nil {
+			t.Fatalf("ParseCaseCSV: %v", err)
+		}
+		if len(obs) != 1 || obs[0].Type != "domain" {
+			t.Errorf("ParseCaseCSV got %+v, want the domain row (order ignored)", obs)
 		}
 	})
 }
