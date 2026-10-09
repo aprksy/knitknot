@@ -1,6 +1,6 @@
 # ADR 0006 — Coverage: evidence × pattern similarity
 
-- **Status:** accepted — decisions confirmed; stages 1–3 to implement (ordered coverage = stage 4, separate)
+- **Status:** accepted — stages 1–3 shipped (`coverage` CLI: pattern + direct evidence + report); ordered coverage = stage 4, separate
 - **Date:** 2026-10-08
 - **Deciders:** knitknot maintainers
 

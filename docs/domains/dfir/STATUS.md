@@ -29,7 +29,8 @@ Covered by `extensions/dfir/*_test.go`:
   qualifiers. Unsupported operators (`LIKE`/`MATCHES`/`ISSUBSET`, `!=`/`<=`/`>=`)
   and unknown object paths are skipped, never matched.
 - **Case CSV input** — `type,value[,context]`, case-insensitive type
-  aliases, blank-line skip, and row-naming errors on bad input.
+  aliases (observables plus `technique`), blank-line skip, and row-naming
+  errors on bad input.
 - **Correlation** — one `Match` per case observable that hits, walking
   `indicator —indicates→ malware —uses→ attack-pattern` and
   `campaign —attributed-to→ actor` (campaign found through the incoming
@@ -45,6 +46,14 @@ Covered by `extensions/dfir/*_test.go`:
   for *every* observable-bearing indicator, not just matched ones (opt-in;
   deduped by `Observable.Key()`), so the layer can be exported and
   cluster-analyzed.
+- **Coverage (evidence × pattern)** `[updated 2026-10-08]` —
+  `coverage --observables case.csv -f cti.gob --target <label>:<name>`
+  reports, per label, how much of the target's CTI neighbourhood the evidence
+  **directly** covers: `indicator` (observable match) and `attack-pattern`
+  (`technique` evidence), with matched/unmatched lists. Everything
+  reachable-but-not-direct (malware/campaign/actor) is **inferred context**,
+  reported separately and never counted, so a single matched IOC cannot
+  inflate the score. `Total == 0` renders `n/a`, not 100% (ADR 0006).
 - **Downstream tooling** — a workspace queries like any graph and exports
   to Parquet (and STIX for the nodes carrying `stix_id`).
 

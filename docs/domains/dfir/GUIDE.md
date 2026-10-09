@@ -85,6 +85,40 @@ knitknot correlate --observables case.csv -f th.gob --format json
 Emits an array of matches with the observable, context, and every
 `id/label/name/stix_id` reference — pipe it into your report tooling.
 
+## Coverage — how much of a known pattern have we seen?
+
+`coverage` measures how much of a candidate threat's pattern the evidence
+**directly** covers. This is the general similarity primitive for slow,
+low-and-slow attacks.
+
+```bash
+knitknot coverage --observables case.csv -f th.gob --target "intrusion-set:Tutorial APT"
+```
+
+```
+target: intrusion-set Tutorial APT
+indicator 1/2 50%
+  matched: TutorialBanker C2 Server
+  unmatched: TutorialBanker File Hash
+attack-pattern 1/2 50%
+  matched: Credential Dumping
+  unmatched: Lateral Movement
+Inferred context: 4 nodes
+```
+
+- **Dimensions:** `indicator` (from observable evidence) and `attack-pattern`
+  (from `technique` evidence — add a `technique,Credential Dumping` row to the
+  CSV). ATT&CK bundles have no indicators, so the `technique` dimension is the
+  useful one there.
+- **Only direct matches count.** Everything reachable through a match
+  (malware, campaign, actor) is *inferred context* — shown, but never counted,
+  so a single matched IOC cannot inflate the score.
+- **`--target <label>:<name>`** selects the reference (missing/ambiguous
+  errors). Add `--format json` for machine-readable output including the full
+  inferred list.
+- **Not confidence or attribution.** "1/2 techniques" ≠ "it is actor X" —
+  many actors share techniques.
+
 ## Build a persistable case workspace
 
 A report is one-shot. A **workspace** is a graph you can keep, query, and
