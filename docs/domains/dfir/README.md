@@ -111,18 +111,20 @@ wins, with history.
 
 | Format | Direction | Lossless | Notes |
 | --- | --- | --- | --- |
-| Case CSV (`type,value[,context]`) | Import | Yes | Type aliases accepted; see GUIDE |
+| Case CSV (`type,value[,context][,order]`) | Import | Yes | Type aliases incl. `technique`; see GUIDE |
+| Case CSV via `import --format evidence` | Import | Yes | Accumulates entities as `observable` nodes (ADR 0008); see [ROUNDTRIP.md](ROUNDTRIP.md) |
 | `.gob` workspace | Export | Yes | Written by `correlate --workspace` |
 | Parquet (inherited) | Export | Yes | `export --format parquet -f workspace.gob` |
 | STIX 2.1 (inherited) | Export | Yes | Workspace CTI nodes carry `stix_id` |
 
 ## Extension registration
 
-**None.** This domain does not register verbs, importers, or exporters with
-the extension registry. It is a standalone package plus one CLI command
-(`knitknot correlate`) that reads a graph through the `StorageEngine` port.
-Per `docs/domains/README.md`, it does not import another domain extension:
-the STIX vocabulary it needs is declared locally (`extensions/dfir/vocab.go`),
+`[updated 2026-10-08]` Registers **one** importer with the registry —
+`evidence` (`import --format evidence`, ADR 0008) via `dfir.Extension`, wired
+in `cmd`'s explicit composition. Everything else (`correlate`, `coverage`) is
+standalone CLI reading a graph through the `StorageEngine` port. Per
+`docs/domains/README.md`, it does not import another domain extension: the
+STIX vocabulary it needs is declared locally (`extensions/dfir/vocab.go`),
 and the test suite imports `extensions/cti` to seed fixtures and guard
 against vocabulary drift.
 

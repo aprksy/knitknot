@@ -134,6 +134,21 @@ Reversed evidence lowers it (`1/2`). It requires `import --tactics` (tactic
 ranks); without them it reads `ordered n/a`. `N` is always shown — a single
 technique is trivially "in order".
 
+## Accumulating evidence across windows
+
+One CSV is one window; slow attacks span many. Persist each window's
+entities as graph evidence and score the accumulated set:
+
+```bash
+knitknot import --format evidence --source window-1 -f th.gob w1.csv
+knitknot import --format evidence --source window-2 -f th.gob w2.csv
+knitknot coverage --from-graph -f th.gob --target "intrusion-set:Tutorial APT"
+```
+
+Same identity merges (re-imports add nothing); `--source window-1`
+restricts scoring to one window. The Jupyter producer side — SIEM →
+case-entity CSV — is documented in [ROUNDTRIP.md](ROUNDTRIP.md).
+
 ## Build a persistable case workspace
 
 A report is one-shot. A **workspace** is a graph you can keep, query, and

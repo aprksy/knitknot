@@ -1,6 +1,6 @@
 # ADR 0008 — Evidence round-trip and accumulation
 
-- **Status:** accepted — decisions confirmed; stages 1–3 to implement
+- **Status:** accepted — stages 1–3 shipped (`import --format evidence`, `coverage --from-graph`)
 - **Date:** 2026-10-08
 - **Deciders:** knitknot maintainers
 

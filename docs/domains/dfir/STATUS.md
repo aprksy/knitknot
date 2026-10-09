@@ -62,6 +62,14 @@ Covered by `extensions/dfir/*_test.go`:
   `ordered LIS/N` with the expected vs actual sequence; `n/a` when the pattern
   has no ranks (`import --tactics`) or there is no order. `N` is always shown
   — one technique is trivially "in order".
+- **Evidence round-trip (accumulation)** `[updated 2026-10-08]` —
+  `import --format evidence --source <window> -f <graph> <case.csv>` persists
+  evidence entities as accumulating `observable` nodes (identity = kind +
+  canonical value; one node per identity, each observation in history), so
+  evidence **accumulates across windows** instead of being a one-shot CSV.
+  `coverage --from-graph [--source <window>]` scores the accumulated set.
+  Idempotent — re-importing a window adds nothing. The Jupyter producer
+  contract is in [ROUNDTRIP.md](ROUNDTRIP.md) (ADR 0008).
 - **Downstream tooling** — a workspace queries like any graph and exports
   to Parquet (and STIX for the nodes carrying `stix_id`).
 
