@@ -138,13 +138,17 @@ rule as the core lib.
 
 ### Querying is the core DSL's querying
 
-`Has()` is outgoing-only with a required match value; no bounded multi-hop,
-no "follow `uses` with no predicate." CTI-shaped questions needing raw
-traversal wait on the graph-layer work. `Where()` supports only `=`, `!=`,
-`>`, `<` — there is no `contains`/regex, and `>`/`<` coerce numbers only,
-so **date-range filters do not work** (`Where('n.valid_from', '>', '2024-…')`
-matches nothing; verified). Exact timestamps with `=` work; for ranges,
-export and filter downstream.
+`Has()` is outgoing-only, requires a match value, and fans out from the
+`Find` node. `[updated 2026-10-08]` **Fixed-length multi-hop now works** via
+`.Follow(rel, dir)` / `.FollowHas(rel, value, dir)` (ADR 0004, Tier 1): hops
+chain from the previous node and take a direction (`'out'`/`'in'`/`'both'`),
+so `Find('intrusion-set').Follow('attributed-to','in').Follow('uses','out')`
+is one query. Still missing: **bounded variable-length reachability**
+(`.Reach`, ADR 0004 Tier 2) and path enumeration. `Where()` supports only
+`=`, `!=`, `>`, `<` — there is no `contains`/regex, and `>`/`<` coerce
+numbers only, so **date-range filters do not work**
+(`Where('n.valid_from', '>', '2024-…')` matches nothing; verified). Exact
+timestamps with `=` work; for ranges, export and filter downstream.
 
 `[updated 2026-10-08]` **Custom fields are preserved but only scalar ones
 filter.** MITRE `x_mitre_*` fields and any custom properties survive import,

@@ -63,8 +63,10 @@ knitknot query "Find('malware').Has('uses', 'Credential Dumping')" -f ti.gob
 
 > Note: each `.Has()` step fans out from the original `Find` node — a
 > chained query like `Find('campaign').Has('uses', 'X').Has('uses', 'Y')`
-> means "campaigns using both X *and* Y", not a multi-hop trace. Pivot
-> chains by starting a new query from the previous result.
+> means "campaigns using both X *and* Y", not a path. For a multi-hop trace
+> use `.Follow(rel, dir)` (ADR 0004), which chains from the previous node:
+> `Find('intrusion-set').Follow('attributed-to','in').Follow('uses','out')`
+> — direction is `'out'` (default), `'in'`, or `'both'`.
 
 ## Step 4: Export findings
 

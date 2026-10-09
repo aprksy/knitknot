@@ -1,6 +1,6 @@
 # ADR 0004 — Bounded multi-hop traversal
 
-- **Status:** proposed
+- **Status:** accepted — Tier 1 shipped (`Follow`/`FollowHas` + direction); Tier 2 proposed
 - **Date:** 2026-10-08
 - **Deciders:** knitknot maintainers
 

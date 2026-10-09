@@ -32,6 +32,21 @@ Find(label).Has(rel, value).Where(field, op, val).Limit(n)
     DEFINE make_payment_using TO payment_method VIA name
     ```
 
+- `Follow(rel, dir)` / `FollowHas(rel, value, dir) `
+
+    Chains a hop from the **previous** node instead of the `Find` node, so
+    hops form a path. `dir` is `'out'` (default), `'in'`, or `'both'`.
+    `FollowHas` also filters the target's `MatchOn` property (like `Has`).
+    ```
+    # actor <-attributed-to- campaign ->uses- malware ->uses- attack-pattern
+    Find('intrusion-set').Follow('attributed-to', 'in').Follow('uses').Follow('uses')
+
+    # chained, with a value filter on the target
+    Find('campaign').FollowHas('uses', 'SomeMalware').Follow('uses')
+    ```
+    Unlike `Has` (which fans out from the `Find` node), `Follow` advances the
+    current position along the path. See ADR 0004.
+
 - `Where(field, op, value) `
 
     Filters based on node properties. 
