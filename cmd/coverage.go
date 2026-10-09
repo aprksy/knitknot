@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/aprksy/knitknot/extensions/dfir"
+	portstorage "github.com/aprksy/knitknot/pkg/ports/storage"
 )
 
 var coverageCmd = &cobra.Command{
@@ -23,18 +24,34 @@ var coverageFlags struct {
 	observables string
 	target      string
 	format      string
+	fromGraph   bool
+	source      string
 }
 
 func init() {
 	coverageCmd.Flags().StringVarP(&coverageFlags.observables, "observables", "O", "", "Case entities CSV file (type,value[,context])")
 	coverageCmd.Flags().StringVar(&coverageFlags.target, "target", "", "Reference node as <label>:<name>")
 	coverageCmd.Flags().StringVar(&coverageFlags.format, "format", "text", "Output format (text, json)")
+	coverageCmd.Flags().BoolVar(&coverageFlags.fromGraph, "from-graph", false, "Read accumulated evidence from the graph's observable layer instead of --observables")
+	coverageCmd.Flags().StringVar(&coverageFlags.source, "source", "", "With --from-graph: only evidence first seen in this window (source_feed); default all evidence")
 	RootCmd.AddCommand(coverageCmd)
 }
 
-func runCoverage(cmd *cobra.Command, args []string) error {
-	if coverageFlags.observables == "" {
+// validateCoverageSource enforces that exactly one evidence input is
+// given: --observables (one-shot CSV) or --from-graph (accumulated layer).
+func validateCoverageSource(observables string, fromGraph bool) error {
+	if fromGraph && observables != "" {
+		return fmt.Errorf("usage: knitknot coverage -f <graph.gob> --target <label>:<name>: --observables and --from-graph are mutually exclusive")
+	}
+	if !fromGraph && observables == "" {
 		return fmt.Errorf("usage: knitknot coverage --observables <case.csv> -f <graph.gob> --target <label>:<name>: missing --observables")
+	}
+	return nil
+}
+
+func runCoverage(cmd *cobra.Command, args []string) error {
+	if err := validateCoverageSource(coverageFlags.observables, coverageFlags.fromGraph); err != nil {
+		return err
 	}
 	if coverageFlags.target == "" {
 		return fmt.Errorf("usage: knitknot coverage --observables <case.csv> -f <graph.gob> --target <label>:<name>: missing --target")
@@ -44,22 +61,16 @@ func runCoverage(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("bad --target %q: want <label>:<name>", coverageFlags.target)
 	}
 
-	f, err := os.Open(coverageFlags.observables)
-	if err != nil {
-		return fmt.Errorf("open %s: %w", coverageFlags.observables, err)
-	}
-	defer f.Close()
-
-	entities, err := dfir.ParseCaseEntities(f)
-	if err != nil {
-		return err
-	}
-
 	engine, err := LoadGraph(globalFlags.file)
 	if err != nil {
 		return err
 	}
 	if engine, err = resolveStoreBackend(engine); err != nil {
+		return err
+	}
+
+	entities, err := loadCoverageEntities(engine.Storage())
+	if err != nil {
 		return err
 	}
 
@@ -86,6 +97,21 @@ func runCoverage(cmd *cobra.Command, args []string) error {
 	default:
 		return fmt.Errorf("unknown format %q: want text or json", coverageFlags.format)
 	}
+}
+
+// loadCoverageEntities returns the evidence to score: the accumulated
+// observable layer (optionally filtered to one window) with --from-graph,
+// else the one-shot CSV.
+func loadCoverageEntities(s portstorage.StorageEngine) ([]dfir.CaseEntity, error) {
+	if coverageFlags.fromGraph {
+		return dfir.EvidenceFromGraph(s, coverageFlags.source), nil
+	}
+	f, err := os.Open(coverageFlags.observables)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", coverageFlags.observables, err)
+	}
+	defer f.Close()
+	return dfir.ParseCaseEntities(f)
 }
 
 // coveragePct renders a Covered/Total fraction; an empty pattern dimension

@@ -64,3 +64,20 @@ func TestFormatCoverageTextOrdered(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateCoverageSource(t *testing.T) {
+	if err := validateCoverageSource("case.csv", false); err != nil {
+		t.Errorf("csv only: %v", err)
+	}
+	if err := validateCoverageSource("", true); err != nil {
+		t.Errorf("from-graph only: %v", err)
+	}
+	if err := validateCoverageSource("case.csv", true); err == nil {
+		t.Error("both inputs: err = nil, want mutual-exclusion error")
+	} else if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("both inputs err = %v, want mutual-exclusion", err)
+	}
+	if err := validateCoverageSource("", false); err == nil {
+		t.Error("neither input: err = nil, want missing-input error")
+	}
+}
