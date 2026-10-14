@@ -52,7 +52,8 @@ These behaviors are covered by `extensions/cti/*_test.go` and the
 - **Registered vocabulary** — `uses`, `targets`, `indicates`,
   `attributed-to`, `communicates-with`, `based-on`, `derived-from`,
   `object-ref`, `has-tactic` all work in `Has(...)`; CTI verbs persist
-  through Save/Load like any other verbs.
+  through Save/Load like any other verbs **on gob** — bolt stores don't
+  persist verbs, so a sync *from* bolt carries nodes and edges but no verbs.
 - **Tactic materialization** `[updated 2026-10-08]` — `import --tactics`
   turns ATT&CK `kill_chain_phases` (otherwise an inert array prop) into
   `x-mitre-tactic` nodes carrying a `rank` and one

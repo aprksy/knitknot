@@ -193,7 +193,7 @@ Labels and edge kinds come from `extensions/cti/vocabulary.go` (11 labels, 8 edg
 - **No TAXII** — no client/server, no polling, no enrichment; feed plumbing is yours.
 - **No point-in-time DSL query** — no `.AsOf(...)`; time travel is kernel primitives (`GetNodeAt`/`GetNodeHistory`) only.
 - **Edge history not at the CLI** — `history` takes a node ID; edge versions exist in the kernel but aren't exposed.
-- **Sync is gob→gob only** — gob→sqlite errors out (`sync not implemented for gob -> sqlite yet`).
+- **Sync is gob↔bolt** — other schemes (e.g. sqlite, which has no backend) error out (`sync not implemented for gob -> sqlite yet`). **Verbs don't survive a from-bolt sync** — bolt stores don't persist verb definitions, so re-register them on the destination.
 - **Subgraph versioning not implemented** — history is per-node, not per-subgraph.
 - **Analyst-sized only** — comfortable in the low thousands of objects; tens of thousands uncharted, no benchmarks.
 

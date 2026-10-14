@@ -1,8 +1,9 @@
 # Domain Implementations
 
-> **Status: design guidance.** KnitKnot does not yet expose the extension
-> interfaces described here. This directory defines the boundary that future
-> implementations should follow before code is added.
+> **Status: implemented and validated.** The extension contract below is
+> implemented in `extensions/extension.go` and validated by the
+> threat-intelligence and dfir extensions (wired in `cmd`). This directory
+> still defines the boundary every implementation must follow.
 
 KnitKnot's graph kernel must stay business-domain neutral. Threat
 intelligence, fraud, supply chain, identity, healthcare, and future domains
@@ -123,8 +124,8 @@ type Registry interface {
 }
 ```
 
-This interface is intentionally not implemented yet. The first real domain
-extension should validate the design before it enters the public API.
+This interface is implemented in `extensions/extension.go`; the
+threat-intelligence and dfir extensions validated the design.
 
 Registration rules:
 
