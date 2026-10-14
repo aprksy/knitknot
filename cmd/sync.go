@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -46,6 +47,15 @@ func newSyncCmd() *cobra.Command {
 // honestly in the pair error (checked before Resolve so the message, not the
 // unknown-scheme error, wins).
 func syncSupportedScheme(scheme string) bool { return scheme == "gob" || scheme == "bolt" }
+
+// store: sync — bolt stores do not persist verb definitions, so a sync
+// whose source is bolt carries nodes and edges but no verbs.
+func syncVerbWarning(fromScheme string) string {
+	if fromScheme == "bolt" {
+		return "warning: the bolt source does not persist verb definitions; this sync carries no verbs — re-register them on the destination if needed"
+	}
+	return ""
+}
 
 // store: sync — open one endpoint. Gob rides LoadGraph/SaveGraph (verb
 // registries included); bolt opens the DB directly (verbs don't persist on
@@ -114,6 +124,9 @@ func runSync(fromURI, toURI string, prune bool) error {
 	}
 	defer toClose()
 	fromSE, toSE := fromEngine.Storage(), toEngine.Storage()
+	if w := syncVerbWarning(fromScheme); w != "" {
+		fmt.Fprintln(os.Stderr, w)
+	}
 
 	// Pass 1: snapshot source, validate every edge endpoint against the
 	// source's full node set before any mutation (mirrors STIXImporter).

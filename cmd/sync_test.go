@@ -179,3 +179,10 @@ var _ = Describe("sync command", func() {
 		Expect(err.Error()).To(ContainSubstring("sync not implemented for gob -> sqlite yet"))
 	})
 })
+
+var _ = Describe("sync from-bolt verb warning", func() {
+	It("warns for bolt sources and stays silent otherwise", func() {
+		Expect(syncVerbWarning("bolt")).To(ContainSubstring("no verbs"))
+		Expect(syncVerbWarning("gob")).To(BeEmpty())
+	})
+})
