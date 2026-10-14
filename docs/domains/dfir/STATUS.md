@@ -29,7 +29,7 @@ Covered by `extensions/dfir/*_test.go`:
   qualifiers. Unsupported operators (`LIKE`/`MATCHES`/`ISSUBSET`, `!=`/`<=`/`>=`)
   and unknown object paths are skipped, never matched.
 - **Case CSV input** — `type,value[,context]`, case-insensitive type
-  aliases (observables plus `technique`), blank-line skip, and row-naming
+  aliases (observables plus `technique`, `malware`, `tool`), blank-line skip, and row-naming
   errors on bad input.
 - **Correlation** — one `Match` per case observable that hits, walking
   `indicator —indicates→ malware —uses→ attack-pattern` and
@@ -49,11 +49,13 @@ Covered by `extensions/dfir/*_test.go`:
 - **Coverage (evidence × pattern)** `[updated 2026-10-08]` —
   `coverage --observables case.csv -f cti.gob --target <label>:<name>`
   reports, per label, how much of the target's CTI neighbourhood the evidence
-  **directly** covers: `indicator` (observable match) and `attack-pattern`
-  (`technique` evidence), with matched/unmatched lists. Everything
-  reachable-but-not-direct (malware/campaign/actor) is **inferred context**,
-  reported separately and never counted, so a single matched IOC cannot
-  inflate the score. `Total == 0` renders `n/a`, not 100% (ADR 0006).
+  **directly** covers: `indicator` (observable match), `attack-pattern`
+  (`technique` evidence), `malware` (`malware` family-name evidence), and
+  `tool` (`tool` name evidence), with matched/unmatched lists. Everything
+  reachable-but-not-direct (campaign/actor, plus unmatched members of the
+  counted layers) is **inferred context**, reported separately and never
+  counted, so a single matched IOC cannot inflate the score. `Total == 0`
+  renders `n/a`, not 100% (ADR 0006).
 - **Ordered coverage** `[updated 2026-10-08]` — on the `attack-pattern`
   dimension, coverage is also reported **in sequence**: covered techniques are
   ordered by evidence order (an optional `order` column, else row order) and

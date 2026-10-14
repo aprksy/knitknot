@@ -103,13 +103,21 @@ indicator 1/2 50%
 attack-pattern 1/2 50%
   matched: Credential Dumping
   unmatched: Lateral Movement
+malware 1/1 100%
+  matched: TutorialBanker
+  unmatched: (none)
+tool 0/0 n/a
+  matched: (none)
+  unmatched: (none)
 Inferred context: 4 nodes
 ```
 
-- **Dimensions:** `indicator` (from observable evidence) and `attack-pattern`
+- **Dimensions:** `indicator` (from observable evidence), `attack-pattern`
   (from `technique` evidence — add a `technique,Credential Dumping` row to the
-  CSV). ATT&CK bundles have no indicators, so the `technique` dimension is the
-  useful one there.
+  CSV), `malware` (from `malware` evidence — e.g. `malware,TutorialBanker`),
+  and `tool` (from `tool` evidence). ATT&CK bundles have no indicators, so the
+  `technique` dimension is the useful one there. A dimension with no pattern
+  nodes renders `n/a`, not 100%.
 - **Only direct matches count.** Everything reachable through a match
   (malware, campaign, actor) is *inferred context* — shown, but never counted,
   so a single matched IOC cannot inflate the score.

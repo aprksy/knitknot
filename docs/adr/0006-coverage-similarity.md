@@ -1,6 +1,6 @@
 # ADR 0006 — Coverage: evidence × pattern similarity
 
-- **Status:** accepted — stages 1–3 shipped (`coverage` CLI: pattern + direct evidence + report); ordered coverage = stage 4, separate
+- **Status:** accepted — stages 1–3 shipped (`coverage` CLI: pattern + direct evidence + report); ordered coverage = stage 4, separate. Dimensions now `indicator` + `attack-pattern` + `malware` + `tool` (malware/tool promoted from deferred).
 - **Date:** 2026-10-08
 - **Deciders:** knitknot maintainers
 
@@ -41,7 +41,8 @@ checkable equality:
 | --- | --- | --- |
 | observable (domain/ip/hash/url/file-name) | `indicator` | canonical pattern-observable equality |
 | `technique` (ATT&CK id or name) | `attack-pattern` | `name` (or `external_id` when resolvable) |
-| *(extensible)* `malware`/`tool` (name) | `malware`/`tool` | `name` |
+| `malware` (family name) | `malware` | `name` (case-insensitive) |
+| `tool` (name) | `tool` | `name` (case-insensitive) |
 
 **Coverage per label:**
 `Coverage_L = |Pattern_L ∩ DirectEvidence_L| / |Pattern_L|` (1.0 when
@@ -58,8 +59,8 @@ logical order on the other. Strictness is opt-in.
 
 ## Evidence model extension
 
-The case CSV (`type,value[,context]`) gains `technique` (and optionally
-`malware`/`tool`). Existing observable types are unchanged. This is what
+The case CSV (`type,value[,context]`) gains `technique`, `malware`, and
+`tool`. Existing observable types are unchanged. This is what
 makes coverage work for **MITRE ATT&CK** references (which carry no
 indicators): the `attack-pattern` dimension is populated by `technique`
 evidence an analyst/Jupyter supplies.
@@ -98,9 +99,8 @@ knitknot coverage --observables case.csv -f cti.gob --target <label>:<name> [--f
 ## Open decisions (resolved for v1)
 
 - **Target selector:** `--target <label>:<name>` (errors on missing/ambiguous).
-- **Dimensions v1:** `indicator` + `attack-pattern` (the directly-evidenced
-  layers). `malware`/`tool` direct-evidence types are a trivial extension,
-  deferred.
+- **Dimensions v1:** `indicator` + `attack-pattern` + `malware` + `tool`
+  (the directly-evidenced layers; `malware`/`tool` promoted from deferred).
 - **Overall score:** report per-label fractions only; **no weighted
   aggregate** in v1 (consumers weight).
 - **Inferred context:** a collapsed count in `text`; the full list in `json`.
