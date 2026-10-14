@@ -205,8 +205,8 @@ func TestCoverageFractions(t *testing.T) {
 	if got := refNames(ap.Unmatched); !equalStrings(got, []string{"Lateral Movement"}) {
 		t.Errorf("attack-pattern unmatched = %v", got)
 	}
-	if len(rep.Dimensions) != 2 || rep.Dimensions[0].Label != "indicator" || rep.Dimensions[1].Label != "attack-pattern" {
-		t.Errorf("dimensions must be [indicator attack-pattern] in stable order, got %v", rep.Dimensions)
+	if len(rep.Dimensions) != 4 || rep.Dimensions[0].Label != "indicator" || rep.Dimensions[1].Label != "attack-pattern" || rep.Dimensions[2].Label != "malware" || rep.Dimensions[3].Label != "tool" {
+		t.Errorf("dimensions must be [indicator attack-pattern malware tool] in stable order, got %v", rep.Dimensions)
 	}
 }
 
@@ -681,6 +681,118 @@ func TestParseCaseEntitiesOrder(t *testing.T) {
 		}
 		if len(obs) != 1 || obs[0].Type != "domain" {
 			t.Errorf("ParseCaseCSV got %+v, want the domain row (order ignored)", obs)
+		}
+	})
+}
+
+func TestDirectEvidenceMalwareTool(t *testing.T) {
+	s := seedCoverageGraph(t)
+	// Add one tool node hung off the malware so PatternOf sees it.
+	toolID, err := s.AddNode("tool", map[string]any{"name": "Mimikatz"})
+	if err != nil {
+		t.Fatalf("AddNode tool: %v", err)
+	}
+	mal := mustResolve(t, s, "malware", "TutorialBanker")
+	tool, _ := s.GetNode(toolID)
+	_ = tool
+	if err := s.AddEdge(mal.ID, toolID, "uses", nil); err != nil {
+		t.Fatalf("AddEdge uses tool: %v", err)
+	}
+
+	t.Run("malware hits only malware", func(t *testing.T) {
+		got := DirectEvidence(s, []CaseEntity{{Kind: EntityMalware, Value: "tutorialbanker"}})
+		if names := patternNames(got, "malware"); !equalStrings(names, []string{"TutorialBanker"}) {
+			t.Errorf("direct malware = %v", names)
+		}
+		if len(got["indicator"]) != 0 || len(got["attack-pattern"]) != 0 || len(got["tool"]) != 0 {
+			t.Errorf("malware evidence inflated other dims: %v", got)
+		}
+	})
+
+	t.Run("tool hits only tool", func(t *testing.T) {
+		got := DirectEvidence(s, []CaseEntity{{Kind: EntityTool, Value: "MIMIKATZ"}})
+		if names := patternNames(got, "tool"); !equalStrings(names, []string{"Mimikatz"}) {
+			t.Errorf("direct tool = %v", names)
+		}
+		if len(got["indicator"]) != 0 || len(got["attack-pattern"]) != 0 || len(got["malware"]) != 0 {
+			t.Errorf("tool evidence inflated other dims: %v", got)
+		}
+	})
+
+	t.Run("no match", func(t *testing.T) {
+		got := DirectEvidence(s, []CaseEntity{
+			{Kind: EntityMalware, Value: "No Such Family"},
+			{Kind: EntityTool, Value: "No Such Tool"},
+		})
+		if len(got["malware"]) != 0 || len(got["tool"]) != 0 {
+			t.Errorf("non-matching names covered something: %v", got)
+		}
+	})
+
+	t.Run("coverage fractions", func(t *testing.T) {
+		actor := mustResolve(t, s, "intrusion-set", "Tutorial APT")
+		rep, err := Coverage(s, actor, []CaseEntity{
+			{Kind: EntityMalware, Value: "TutorialBanker"},
+			{Kind: EntityTool, Value: "Mimikatz"},
+		}, 3)
+		if err != nil {
+			t.Fatalf("Coverage: %v", err)
+		}
+		if m := dimByLabel(rep, "malware"); m.Covered != 1 || m.Total != 1 {
+			t.Errorf("malware = %d/%d, want 1/1", m.Covered, m.Total)
+		}
+		if tl := dimByLabel(rep, "tool"); tl.Covered != 1 || tl.Total != 1 {
+			t.Errorf("tool = %d/%d, want 1/1", tl.Covered, tl.Total)
+		}
+		if ind := dimByLabel(rep, "indicator"); ind.Covered != 0 {
+			t.Errorf("indicator covered = %d, want 0 (no inflation)", ind.Covered)
+		}
+		if ap := dimByLabel(rep, "attack-pattern"); ap.Covered != 0 {
+			t.Errorf("attack-pattern covered = %d, want 0 (no inflation)", ap.Covered)
+		}
+	})
+
+	t.Run("tool n/a without tools", func(t *testing.T) {
+		plain := seedCoverageGraph(t) // no tool nodes
+		actor := mustResolve(t, plain, "intrusion-set", "Tutorial APT")
+		rep, err := Coverage(plain, actor, []CaseEntity{{Kind: EntityTool, Value: "Mimikatz"}}, 3)
+		if err != nil {
+			t.Fatalf("Coverage: %v", err)
+		}
+		if tl := dimByLabel(rep, "tool"); tl.Covered != 0 || tl.Total != 0 {
+			t.Errorf("tool = %d/%d, want 0/0 (n/a)", tl.Covered, tl.Total)
+		}
+	})
+}
+
+func TestParseCaseEntitiesMalwareTool(t *testing.T) {
+	t.Run("kinds accepted case-insensitive", func(t *testing.T) {
+		got, err := ParseCaseEntities(strings.NewReader("type,value\nMALWARE,TutorialBanker\nTool,Mimikatz\n"))
+		if err != nil {
+			t.Fatalf("ParseCaseEntities: %v", err)
+		}
+		if len(got) != 2 || got[0].Kind != "malware" || got[1].Kind != "tool" {
+			t.Errorf("got %+v, want [malware tool]", got)
+		}
+		if got[0].Value != "TutorialBanker" || got[1].Value != "Mimikatz" {
+			t.Errorf("values not preserved: %+v", got)
+		}
+	})
+
+	t.Run("unknown still errors", func(t *testing.T) {
+		_, err := ParseCaseEntities(strings.NewReader("type,value\nransomware,X\n"))
+		if err == nil || !strings.Contains(err.Error(), "row 2") {
+			t.Errorf("err = %v, want row 2 error", err)
+		}
+	})
+
+	t.Run("ParseCaseCSV skips new kinds", func(t *testing.T) {
+		got, err := ParseCaseCSV(strings.NewReader("type,value\ndomain,example.com\nmalware,TutorialBanker\ntool,Mimikatz\ntechnique,Credential Dumping\n"))
+		if err != nil {
+			t.Fatalf("ParseCaseCSV: %v", err)
+		}
+		if len(got) != 1 || got[0].Type != "domain" {
+			t.Errorf("got %+v, want only the domain row", got)
 		}
 	})
 }

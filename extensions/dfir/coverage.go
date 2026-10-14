@@ -14,6 +14,8 @@ import (
 // domain extension (see vocab.go).
 const (
 	LabelAttackPattern = "attack-pattern"
+	LabelMalware       = "malware"
+	LabelTool          = "tool"
 	LabelTactic        = "x-mitre-tactic"
 
 	PropRank = "rank"
@@ -30,9 +32,8 @@ const (
 // (actor—campaign—malware—indicator/technique).
 const DefaultCoverageDepth = 3
 
-// CoverageDimensions are the directly-evidenced labels v1 reports, in
-// stable order.
-var CoverageDimensions = []string{LabelIndicator, LabelAttackPattern}
+// CoverageDimensions are the directly-evidenced labels, in stable order.
+var CoverageDimensions = []string{LabelIndicator, LabelAttackPattern, LabelMalware, LabelTool}
 
 // coverageEdgeKinds are the CTI edge kinds traversed for pattern extraction
 // and inferred context.
@@ -104,9 +105,9 @@ func PatternOf(s storage.StorageEngine, target *types.Node, maxDepth int) map[st
 
 // DirectEvidence maps case entities to the CTI nodes they directly evidence,
 // grouped by node label: observables to indicators (canonical
-// pattern-observable equality via the same index Correlate uses) and
-// techniques to attack-patterns (case-insensitive name equality).
-// Deduped; never mutates storage.
+// pattern-observable equality via the same index Correlate uses),
+// techniques to attack-patterns and malware/tool entities to malware/tool
+// nodes (case-insensitive name equality). Deduped; never mutates storage.
 func DirectEvidence(s storage.StorageEngine, entities []CaseEntity) map[string][]*types.Node {
 	out := make(map[string][]*types.Node)
 	seen := make(map[string]map[string]bool)
@@ -125,10 +126,17 @@ func DirectEvidence(s storage.StorageEngine, entities []CaseEntity) map[string][
 
 	var obs []CaseEntity
 	var techs []CaseEntity
+	var malwares []CaseEntity
+	var tools []CaseEntity
 	for _, e := range entities {
-		if e.Kind == EntityTechnique {
+		switch e.Kind {
+		case EntityTechnique:
 			techs = append(techs, e)
-		} else {
+		case EntityMalware:
+			malwares = append(malwares, e)
+		case EntityTool:
+			tools = append(tools, e)
+		default:
 			obs = append(obs, e)
 		}
 	}
@@ -142,23 +150,35 @@ func DirectEvidence(s storage.StorageEngine, entities []CaseEntity) map[string][
 		}
 	}
 	if len(techs) > 0 {
-		for _, n := range s.GetNodesByLabel(LabelAttackPattern) {
-			name, _ := n.Props["name"].(string)
-			if name == "" {
-				continue
-			}
-			for _, e := range techs {
-				if strings.EqualFold(name, e.Value) {
-					add(n)
-					break
-				}
-			}
-		}
+		addNamed(s.GetNodesByLabel(LabelAttackPattern), techs, add)
+	}
+	if len(malwares) > 0 {
+		addNamed(s.GetNodesByLabel(LabelMalware), malwares, add)
+	}
+	if len(tools) > 0 {
+		addNamed(s.GetNodesByLabel(LabelTool), tools, add)
 	}
 	for _, nodes := range out {
 		sortCoverageNodes(nodes)
 	}
 	return out
+}
+
+// addNamed adds every node whose name prop case-insensitively equals any
+// entity value, once per node.
+func addNamed(nodes []*types.Node, entities []CaseEntity, add func(*types.Node)) {
+	for _, n := range nodes {
+		name, _ := n.Props["name"].(string)
+		if name == "" {
+			continue
+		}
+		for _, e := range entities {
+			if strings.EqualFold(name, e.Value) {
+				add(n)
+				break
+			}
+		}
+	}
 }
 
 // Coverage measures how much of the target's pattern the case entities

@@ -26,10 +26,10 @@ type EvidenceStats struct {
 // living in a one-shot CSV.
 //
 // Identity is kind + canonical value: observables use Observable.Key()
-// semantics, techniques a trimmed/lowercased name key (coverage matches
-// names case-insensitively). The stored value keeps the display form
-// (canonical for observables, original case for techniques); name carries
-// the canonical key.
+// semantics, techniques/malware/tool a trimmed/lowercased name key
+// (coverage matches names case-insensitively). The stored value keeps the
+// display form (canonical for observables, original case otherwise); name
+// carries the canonical key.
 //
 // Merge: an existing identity keeps its display props and source_feed
 // (first-seen wins) while order drops to the minimum (first-seen) and a
@@ -117,10 +117,13 @@ func EvidenceFromGraph(s storage.StorageEngine, source string) []CaseEntity {
 }
 
 // evidenceKeys splits an entity into its node kind, canonical identity
-// key, and display value.
+// key, and display value. Techniques, malware, and tool names match
+// case-insensitively, so their keys are lowercased while display keeps the
+// original form.
 func evidenceKeys(e CaseEntity) (kind, key, display string) {
-	if e.Kind == EntityTechnique {
-		return EntityTechnique, strings.ToLower(strings.TrimSpace(e.Value)), strings.TrimSpace(e.Value)
+	switch e.Kind {
+	case EntityTechnique, EntityMalware, EntityTool:
+		return e.Kind, strings.ToLower(strings.TrimSpace(e.Value)), strings.TrimSpace(e.Value)
 	}
 	o := Observable{Type: e.Kind, Value: e.Value}
 	return e.Kind, o.Canonical(), o.Canonical()

@@ -45,11 +45,19 @@ type CaseEntity struct {
 // (value = technique name, e.g. "Credential Dumping").
 const EntityTechnique = "technique"
 
+// EntityMalware is the CaseEntity.Kind for malware family evidence
+// (value = family name, e.g. "TutorialBanker").
+const EntityMalware = "malware"
+
+// EntityTool is the CaseEntity.Kind for tool evidence
+// (value = tool name).
+const EntityTool = "tool"
+
 // ParseCaseEntities reads a header row followed by `type,value[,context]`
 // rows. Header names are case-insensitive; `context` is optional free text.
 // Blank lines are skipped. The type column accepts every ParseCaseCSV alias
-// plus `technique`. Unknown types and rows missing type or value are errors
-// naming the row — case data is never silently dropped.
+// plus `technique`, `malware`, and `tool`. Unknown types and rows missing
+// type or value are errors naming the row — case data is never silently dropped.
 //
 // An optional header-named `order` column carries the evidence sequence
 // (integer, ascending = earlier); a non-numeric value is a row-named error.
@@ -127,10 +135,15 @@ func ParseCaseEntities(r io.Reader) ([]CaseEntity, error) {
 }
 
 // caseEntityKind maps a lowercased input type token to its canonical
-// CaseEntity.Kind: an Observable.Type, or EntityTechnique.
+// CaseEntity.Kind: an Observable.Type, or EntityTechnique/EntityMalware/EntityTool.
 func caseEntityKind(token string) (string, bool) {
-	if strings.ToLower(token) == EntityTechnique {
+	switch strings.ToLower(token) {
+	case EntityTechnique:
 		return EntityTechnique, true
+	case EntityMalware:
+		return EntityMalware, true
+	case EntityTool:
+		return EntityTool, true
 	}
 	canon, ok := caseTypeAliases[strings.ToLower(token)]
 	return canon, ok
@@ -141,8 +154,8 @@ func caseEntityKind(token string) (string, bool) {
 // Blank lines are skipped. Unknown types and rows missing type or value
 // are errors naming the row — case data is never silently dropped.
 //
-// Technique rows are skipped: the correlate/workspace path matches
-// observables only. Use ParseCaseEntities when technique evidence matters.
+// Technique/malware/tool rows are skipped: the correlate/workspace path
+// matches observables only. Use ParseCaseEntities when that evidence matters.
 // An `order` column, when present, parses (and validates) the same way but
 // is ignored here.
 func ParseCaseCSV(r io.Reader) ([]CaseObservable, error) {
@@ -152,7 +165,7 @@ func ParseCaseCSV(r io.Reader) ([]CaseObservable, error) {
 	}
 	var out []CaseObservable
 	for _, e := range entities {
-		if e.Kind == EntityTechnique {
+		if e.Kind == EntityTechnique || e.Kind == EntityMalware || e.Kind == EntityTool {
 			continue
 		}
 		out = append(out, CaseObservable{
