@@ -73,7 +73,10 @@ Find(label).Has(rel, value).Where(field, op, val).Limit(n)
     ```
     Field format: {var}.{prop} 
     
-    Supported ops: =, !=, >, < 
+    Supported ops: =, !=, >, <
+    Comparisons are numeric when both sides coerce to numbers, and
+    chronological when both sides resolve to instants (RFC3339 strings, or
+    epoch numbers: seconds below 1e11 else millis).
 
 - `WhereEdge(field, value) `
 

@@ -167,7 +167,7 @@ Labels and edge kinds come from `extensions/cti/vocabulary.go` (11 labels, 8 edg
   ```bash
   knitknot query "Find('campaign').Has('uses', 'frostbiterat')" -f demo.gob
   ```
-- **"Find indicators about to expire"** — honestly: the DSL has no date-range ops. `>`/`<` only coerce numbers (`pkg/query/default.go` `compare()` → `toFloat`; date strings never parse, so `Where('n.valid_from', '>', '2024-…')` matches nothing — verified). `=`/`!=` on exact timestamp strings work, and numeric props like `confidence` support `>`/`<`. For real expiry triage, export and filter:
+- **"Find indicators about to expire"** — date ranges work directly since the comparator is time-aware (`Where('n.valid_until', '<', '2024-06-08T09:00:00.000Z')`, or epoch numbers: seconds below 1e11 else millis). Numeric props like `confidence` support `>`/`<` as before. For complex triage, export and filter:
   ```bash
   knitknot query "Find('indicator').Where('n.valid_until', '=', '2024-06-08T09:00:00.000Z')" -f demo.gob
   knitknot export --format stix -f demo.gob | jq '.objects[] | select(.type=="indicator") | {id, valid_until}'

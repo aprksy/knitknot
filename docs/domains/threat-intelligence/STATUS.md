@@ -158,9 +158,10 @@ hops, default 8, capped 32, cycle-safe) — so
 `'out'`/`'in'`/`'both'`. Still missing: path enumeration / constrained paths
 ("via node X") and shortest path (ADR 0004 Tier 3). `Where()` supports only
 `=`, `!=`, `>`, `<` — there is no `contains`/regex, and `>`/`<` coerce
-numbers only, so **date-range filters do not work**
-(`Where('n.valid_from', '>', '2024-…')` matches nothing; verified). Exact
-timestamps with `=` work; for ranges, export and filter downstream.
+numbers only. Since the comparator is now time-aware, **date-range filters
+work**: RFC3339 timestamps and epoch numbers (seconds below 1e11 else millis)
+compare chronologically, e.g. `Where('n.valid_from', '>', '2024-01-01T00:00:00.000Z')`.
+Array props and booleans still don't filter; for those, export and filter downstream.
 
 `[updated 2026-10-08]` **Custom fields are preserved but only scalar ones
 filter.** MITRE `x_mitre_*` fields and any custom properties survive import,
