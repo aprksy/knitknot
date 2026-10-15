@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aprksy/knitknot/pkg/ports/query"
 	"github.com/aprksy/knitknot/pkg/ports/storage"
@@ -349,6 +350,14 @@ func compare(a any, op string, b any) bool {
 				return af != bf
 			}
 		}
+		if at, ok := toTime(a); ok {
+			if bt, ok := toTime(b); ok {
+				if op == "=" {
+					return at.Equal(bt)
+				}
+				return !at.Equal(bt)
+			}
+		}
 		if op == "=" {
 			return a == b
 		}
@@ -359,14 +368,57 @@ func compare(a any, op string, b any) bool {
 				return ai > bi
 			}
 		}
+		if at, ok := toTime(a); ok {
+			if bt, ok := toTime(b); ok {
+				return at.After(bt)
+			}
+		}
 	case "<":
 		if ai, ok := toFloat(a); ok {
 			if bi, ok := toFloat(b); ok {
 				return ai < bi
 			}
 		}
+		if at, ok := toTime(a); ok {
+			if bt, ok := toTime(b); ok {
+				return at.Before(bt)
+			}
+		}
 	}
 	return false
+}
+
+// toTime interprets v as an instant for chronological comparison:
+// RFC3339 strings, or numbers as epoch (abs >= 1e11 is millis, else
+// seconds). Numeric strings are deliberately NOT treated as epochs here —
+// they stay on the numeric path (so confidence "85" never becomes a date).
+func toTime(v any) (time.Time, bool) {
+	switch t := v.(type) {
+	case time.Time:
+		return t, true
+	case string:
+		if tm, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(t)); err == nil {
+			return tm, true
+		}
+		return time.Time{}, false
+	case float64:
+		return epochToTime(t), true
+	case float32:
+		return epochToTime(float64(t)), true
+	case int:
+		return epochToTime(float64(t)), true
+	case int64:
+		return epochToTime(float64(t)), true
+	default:
+		return time.Time{}, false
+	}
+}
+
+func epochToTime(f float64) time.Time {
+	if f >= 1e11 || f <= -1e11 {
+		return time.UnixMilli(int64(f))
+	}
+	return time.Unix(int64(f), 0)
 }
 
 func toFloat(v any) (float64, bool) {
