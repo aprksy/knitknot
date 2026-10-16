@@ -61,6 +61,7 @@ Similarity ranking is explicitly *not* a graph operation and lives outside.
 | `session_summary` | stable `memory_id` | `user_id`, `payload` | L1/L2 summaries |
 | `pr_turn` | stable `memory_id` | `user_id`, `payload` | raw prompt/response pair |
 | `topic_cluster` | stable `memory_id` | `user_id`, `payload` | refactoring output |
+| `tag` | tag string (`name`) | `name` | one node per distinct tag value; target of `tagged` edges |
 
 Node IDs are **storage-assigned** (sequential); the stable cross-system key
 is a `memory_id` prop, looked up with `Where('n.memory_id', '=', ...)`.
@@ -73,6 +74,7 @@ This mirrors the established `stix_id` pattern.
 | `child-of` | child node | parent node | none | Outgoing (child → parent) |
 | `similar-to` | node | node | `score`, `model`, `observed_at` | Outgoing; written back by the indexer, never by knitknot |
 | `supersedes` | new version | old version | none | Optional; alternative to prop-only supersession |
+| `tagged` | node | tag | none | Outgoing (node → tag); the DSL-queryable form of `tags` |
 
 Lineage in either representation; **edges, not `parent_id` props** — pick one
 and do not store both (the graph is the source of truth for structure).
@@ -176,7 +178,7 @@ recorded at write; mismatch errors instead of degrading silently).
 
 | Format | Direction | Lossless | Notes |
 | --- | --- | --- | --- |
-| memory-bundle (new importer) | Import | Yes | `memory_id`-keyed upsert; TBD shape |
+| memory-bundle (new importer) | Import | Yes | `memory_id`-keyed upsert; shape in [BUNDLE.md](BUNDLE.md) |
 | Parquet | Export | Yes | nodes+edges incl. embeddings → indexer/Jupyter |
 | DOT/JSON | Export | Yes | lineage visualization, debugging |
 
@@ -184,7 +186,7 @@ recorded at write; mismatch errors instead of degrading silently).
 
 A `memory` extension would register:
 
-- Verbs: `child-of`, `similar-to`, `supersedes` (target labels + `MatchOn`)
+- Verbs: `child-of`, `similar-to`, `supersedes`, `tagged` (target labels + `MatchOn`)
 - Importers: `memory-bundle` format
 - Exporters: none new (generic Parquet/DOT/JSON suffice)
 
@@ -283,8 +285,9 @@ storage.
 
 - Node label for tactic-like grouping nodes if memory adopts topic taxonomies
   (`topic_cluster` suffices for v1; revisit if shared vocabularies emerge).
-- `similar-to` edges vs results-file import for match write-back (edges keep
-  traversal; files keep the store clean — recommend edges with score/model).
-- `tagged` edges vs Go-side filtering for tag queries.
-- `memory-bundle` exact shape (defer until an importer is needed).
+- `similar-to` edges (decided: edges keep traversal; `score`/`model`/
+  `observed_at` ride on the edge).
+- `tagged` edges (decided: the DSL-queryable form of `tags`; Go-side
+  filtering remains a fallback for ad-hoc needs).
+- `memory-bundle` shape (decided: [BUNDLE.md](BUNDLE.md)).
 - Whether per-user subgraph vs per-user file is the isolation unit.
