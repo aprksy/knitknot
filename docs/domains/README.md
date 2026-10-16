@@ -26,6 +26,7 @@ Current domains:
 
 - [Threat Intelligence](threat-intelligence/README.md)
 - [DFIR Case × CTI Correlation](dfir/README.md)
+- [Memory — knitknot as AI memory substrate](memory/README.md) (proposed contract spec; no code yet)
 
 When implementation begins, the candidate source layout is:
 
