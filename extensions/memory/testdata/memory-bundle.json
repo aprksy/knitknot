@@ -1,0 +1,30 @@
+{
+  "type": "memory-bundle",
+  "version": 1,
+  "nodes": [
+    {
+      "memory_id": "u-alice",
+      "label": "user_profile",
+      "props": { "user_id": "alice" }
+    },
+    {
+      "memory_id": "turn-1",
+      "label": "pr_turn",
+      "props": {
+        "user_id": "alice",
+        "payload": { "prompt": "hello", "response": "hi" },
+        "created_at": 1760572800,
+        "format": "v1"
+      }
+    },
+    {
+      "memory_id": "t-python",
+      "label": "tag",
+      "props": { "name": "python" }
+    }
+  ],
+  "edges": [
+    { "from": "turn-1", "to": "u-alice", "kind": "child-of", "props": {} },
+    { "from": "turn-1", "to": "t-python", "kind": "tagged", "props": {} }
+  ]
+}

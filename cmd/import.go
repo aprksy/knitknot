@@ -8,6 +8,7 @@ import (
 	"github.com/aprksy/knitknot/extensions"
 	"github.com/aprksy/knitknot/extensions/cti"
 	"github.com/aprksy/knitknot/extensions/dfir"
+	"github.com/aprksy/knitknot/extensions/memory"
 	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/spf13/cobra"
 )
@@ -42,6 +43,9 @@ var registerExtensions = func(r extension.Registry) error { // ext: cti-wire
 	if err := dfir.New().Register(r); err != nil { // ext: dfir-wire — evidence importer (--format evidence)
 		return err // ext: dfir-wire
 	} // ext: dfir-wire
+	if err := memory.New().Register(r); err != nil {
+		return err
+	}
 	r.Freeze() // ext: cti-wire
 	return nil // ext: cti-wire
 }
