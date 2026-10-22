@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Write statements in the DSL (ADR 0009, W1–W3): `ADDNODE`,
+  `CONNECT A --rel--> B`, `UPDATE NODE|EDGE`, `DELETE NODE|EDGE`,
+  `DEFINE` parse through `pkg/dsl` (`ParseProgram`) and execute through
+  the single entry point `GraphEngine.Execute`. Writes return IDs
+  (`ExecuteResult.NodeID/EdgeID/Verb`, contract frozen) and fail before
+  mutating: dangling refs and missing targets change nothing.
 - cmd/ test suite: 43 Ginkgo specs covering dispatch routing, exec
   functions, and explain/export/sample regressions (previously zero
   coverage).
@@ -15,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inmem coverage now ~91%.
 
 ### Changed
+- REPL write commands share the DSL grammar now; unquoted multi-word
+  property values are rejected — quote them (`name='John Doe'`).
+  The old silent string-join is gone. `UPDATE EDGE` keeps requiring
+  trailing props and reporting `no properties to update` otherwise.
 - Gob persistence format bumped to `knitknot/v0.2` (Subgraphs field
   became a `map[string]*Subgraph`). `data.gob` was regenerated and
   is now loadable; older `.gob` files produced before this release

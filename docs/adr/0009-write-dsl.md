@@ -1,6 +1,6 @@
 # ADR 0009 — Write statements in the DSL
 
-- **Status:** accepted (design) — not yet implemented (stages W1–W4 below)
+- **Status:** accepted — implemented (W1–W3 shipped, W4 docs; 2026-10-22)
 - **Date:** 2026-10-22
 - **Deciders:** aprksy (owner)
 
@@ -34,9 +34,11 @@ ones:
 3. **Writes return IDs.** A generator cannot wire relationships without
    them (create customer → get ID → create order). The result shape is
    contract from day one.
-4. **One executor entry point** (`dsl.Execute`) beside the query path,
-   driving the existing `GraphEngine` mutation methods. No new query or
-   storage logic.
+4. **One executor entry point** (`GraphEngine.Execute` beside the query
+   path — the ADR sketch named it `dsl.Execute`; implementation moved the
+   query compiler `ApplyAST` from `cmd` into `pkg/graph` so the kernel owns
+   both execution halves and `pkg/dsl` stays pure syntax), driving the
+   existing `GraphEngine` mutation methods. No new query or storage logic.
 5. **REPL cutover with parity proof.** The REPL's write commands are
    re-routed through the new parser; every existing `exec_*_test.go` must
    pass unchanged; the ad-hoc parsers are then deleted.
@@ -67,10 +69,16 @@ demands it).
 
 ## Delivery stages
 
-- **W1** — parser + AST for write statements; golden tests on parse output.
-- **W2** — executor + `dsl.Execute`; create→query round-trip and error tests.
-- **W3** — REPL cutover; parity tests green; delete ad-hoc parsers.
-- **W4** — docs (`dsl-syntax.md`, ROADMAP/CHANGELOG, strategy §10 flip).
+- **W1** — parser + AST for write statements; golden tests on parse output. ✅
+- **W2** — executor + `GraphEngine.Execute`; create→query round-trip and
+  error tests. ✅ (named `dsl.Execute` in the sketch; see Decision 4)
+- **W3** — REPL cutover; parity tests green; delete ad-hoc parsers. ✅
+  (one documented tightening: unquoted multi-word prop values now error;
+  they need quoting — `name='John Doe'`)
+- **W4** — docs (`dsl-syntax.md`, `dsl.md`, ROADMAP/CHANGELOG/STATUS,
+  strategy §10 flip). ✅ (strategy §10 never landed on `main` — the
+  deferral died on its unmerged branch, so only this ADR records the
+  decision history)
 
 ## Risks
 

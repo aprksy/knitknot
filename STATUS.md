@@ -24,6 +24,12 @@ below) and have been used against the shipped `data.gob` sample:
   `DELETE NODE|EDGE`, `EXPLAIN`, `DEFINE <verb> TO <Label> VIA <prop>`,
   `LIST VERBS`, `SAVE`, `LOAD`. `exit` and `quit` both save any loaded file
   before closing (and Ctrl+D does too).
+  [updated 2026-10-22] Write commands parse through the DSL grammar
+  (ADR 0009): spaced property values need quoting now — `name='John
+  Doe'`, not `name=John Doe`; negative numbers, quoted ids and inline
+  edge props (`--rel k=v-->`) work as documented in
+  [dsl-syntax.md](docs/dsl-syntax.md). Programmatic consumers get the
+  same paths via `dsl.ParseProgram` + `GraphEngine.Execute`.
 - **Persistence**: `Save`/`Load` to `.gob` binary format. The current format
   version is `knitknot/v0.4` (v0.3 added node `History`/`DeletedAt`/
   `CreatedRev` plus the top-level event log; v0.4 extended the same shape
