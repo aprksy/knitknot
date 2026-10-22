@@ -30,7 +30,7 @@ var _ = Describe("DSL Reach (Tier 2)", func() {
 	It("parses and executes Reach with explicit depth", func() {
 		ast, err := dsl.NewParser("Find('N').Reach('e', 'out', 2)").Parse()
 		Expect(err).NotTo(HaveOccurred())
-		builder, err := ApplyAST(engine, ast)
+		builder, err := graph.ApplyAST(engine, ast)
 		Expect(err).NotTo(HaveOccurred())
 
 		result, err := builder.Exec(context.Background())
@@ -42,7 +42,7 @@ var _ = Describe("DSL Reach (Tier 2)", func() {
 	It("defaults direction to out and depth when omitted", func() {
 		ast, err := dsl.NewParser("Find('N').Reach('e')").Parse()
 		Expect(err).NotTo(HaveOccurred())
-		builder, err := ApplyAST(engine, ast)
+		builder, err := graph.ApplyAST(engine, ast)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(builder.ExportPlanForTest().Edges[0].MaxDepth).To(Equal(8))
 	})
@@ -62,12 +62,12 @@ var _ = Describe("DSL Reach (Tier 2)", func() {
 	It("rejects a bad direction and a bad depth type", func() {
 		ast, err := dsl.NewParser("Find('N').Reach('e', 'sideways', 2)").Parse()
 		Expect(err).NotTo(HaveOccurred())
-		_, err = ApplyAST(engine, ast)
+		_, err = graph.ApplyAST(engine, ast)
 		Expect(err).To(HaveOccurred())
 
 		ast, err = dsl.NewParser("Find('N').Reach('e', 'out', 'far')").Parse()
 		Expect(err).NotTo(HaveOccurred())
-		_, err = ApplyAST(engine, ast)
+		_, err = graph.ApplyAST(engine, ast)
 		Expect(err).To(HaveOccurred())
 	})
 })

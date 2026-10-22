@@ -100,7 +100,7 @@ func runExport(cmd *cobra.Command, args []string) (err error) {
 		if err != nil {
 			return fmt.Errorf("parse query: %w", err)
 		}
-		builder, err := ApplyAST(engine, ast)
+		builder, err := graph.ApplyAST(engine, ast)
 		if err != nil {
 			return fmt.Errorf("build query: %w", err)
 		}
