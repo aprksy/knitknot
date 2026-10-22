@@ -1,39 +1,18 @@
-// cmd/repl_data.go
+// REPL write handlers (ADR 0009 W3): routed through the pkg/dsl grammar
+// and graph.Execute instead of ad-hoc string splitting. Signatures and
+// printed output stay the same; syntax errors now carry the grammar's
+// detail after the usage hint.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 
+	"github.com/aprksy/knitknot/pkg/dsl"
 	"github.com/aprksy/knitknot/pkg/graph"
 )
-
-// parseProps converts "name=Alice age=35" to map[string]any
-func parseProps(input string) map[string]any {
-	props := make(map[string]any)
-	var lastKey string
-	for _, tok := range strings.Fields(input) {
-		parts := strings.SplitN(tok, "=", 2)
-		if len(parts) == 2 {
-			lastKey = parts[0]
-			// Try int
-			if v, err := strconv.Atoi(parts[1]); err == nil {
-				props[lastKey] = v
-			} else {
-				props[lastKey] = parts[1]
-			}
-		} else if lastKey != "" {
-			if s, ok := props[lastKey].(string); ok {
-				props[lastKey] = s + " " + tok
-			} else {
-				props[lastKey] = fmt.Sprintf("%v %s", props[lastKey], tok)
-			}
-		}
-	}
-	return props
-}
 
 func execAddNode(engine *graph.GraphEngine, input string, out io.Writer) error {
 	input = strings.TrimSpace(input)
@@ -41,64 +20,35 @@ func execAddNode(engine *graph.GraphEngine, input string, out io.Writer) error {
 		return fmt.Errorf("usage: ADDNODE Label [key=value ...]")
 	}
 
-	fields := strings.Fields(input)
-	label := fields[0]
-	var props map[string]any
-	if len(fields) > 1 {
-		props = parseProps(strings.Join(fields[1:], " "))
+	prog, err := dsl.NewParser(dsl.WriteAddNode + " " + input).ParseProgram()
+	if err != nil {
+		return fmt.Errorf("usage: ADDNODE Label [key=value ...] (%v)", err)
 	}
-
-	id, err := engine.AddNode(label, props)
+	res, err := engine.Execute(context.Background(), prog)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(out, "-- Created node: %s (%s)\n", id, label)
+	label := prog.Write.Label
+	fmt.Fprintf(out, "-- Created node: %s (%s)\n", res.NodeID, label)
 	return nil
 }
 
 func execConnect(engine *graph.GraphEngine, input string, out io.Writer) error {
 	input = strings.TrimSpace(input)
-	// Simple format: fromID --rel--> toID
-	// Or: fromID --rel prop=123--> toID
+	// Formats: fromID --rel--> toID, or fromID --rel k=v--> toID (props
+	// inside the arrow, matching help text).
 
-	arrowStart := strings.Index(input, "--")
-	arrowEnd := strings.LastIndex(input, "-->")
-	if arrowStart == -1 || arrowEnd == -1 || arrowEnd <= arrowStart {
-		return fmt.Errorf("invalid format. Use: FROM --rel--> TO")
-	}
-
-	fromID := strings.TrimSpace(input[:arrowStart])
-	middle := input[arrowStart+2 : arrowEnd]
-	toID := strings.TrimSpace(input[arrowEnd+3:])
-
-	// Extract rel and props
-	middle = strings.TrimSpace(middle)
-	if middle == "" {
-		return fmt.Errorf("missing relationship type")
-	}
-
-	var rel string
-	var propsStr string
-
-	if space := strings.Index(middle, " "); space != -1 {
-		rel = middle[:space]
-		propsStr = middle[space+1:]
-	} else {
-		rel = middle
-	}
-
-	props := parseProps(propsStr)
-
-	if fromID == "" || toID == "" || rel == "" {
-		return fmt.Errorf("invalid connect syntax")
-	}
-
-	err := engine.AddEdge(fromID, toID, rel, props)
+	prog, err := dsl.NewParser(dsl.WriteConnect + " " + input).ParseProgram()
 	if err != nil {
+		return fmt.Errorf("invalid format. Use: FROM --rel--> TO (%v)", err)
+	}
+
+	if _, err := engine.Execute(context.Background(), prog); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(out, "-- Connected %s --%s--> %s\n", fromID, rel, toID)
+	e := prog.Write.Edge
+	fmt.Fprintf(out, "-- Connected %s --%s--> %s\n", e.From, e.Rel, e.To)
 	return nil
 }

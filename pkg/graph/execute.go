@@ -104,7 +104,7 @@ func (ge *GraphEngine) executeWrite(w *dsl.WriteStatement) (*ExecuteResult, erro
 		id := edgeID(e.From, e.To, e.Rel)
 		edge, ok := ge.GetEdge(id)
 		if !ok {
-			return nil, fmt.Errorf("edge %s not found", id)
+			return nil, fmt.Errorf("edge not found: %s", id)
 		}
 		merged, err := mergedProps(edge.Props, w.Props)
 		if err != nil {
