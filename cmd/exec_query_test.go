@@ -67,7 +67,7 @@ var _ = Describe("execQuery / ApplyAST", func() {
 		var builder *graph.Builder
 		Expect(func() {
 			var err error
-			builder, err = ApplyAST(engine, ast)
+			builder, err = graph.ApplyAST(engine, ast)
 			Expect(err).To(HaveOccurred())
 		}).NotTo(Panic())
 		Expect(builder).To(BeNil())
@@ -77,7 +77,7 @@ var _ = Describe("execQuery / ApplyAST", func() {
 		p := dsl.NewParser("Find('X').In('sub')")
 		ast, err := p.Parse()
 		Expect(err).NotTo(HaveOccurred())
-		builder, err := ApplyAST(engine, ast)
+		builder, err := graph.ApplyAST(engine, ast)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(builder.ExportPlanForTest().Subgraph).To(Equal("sub"))
 	})

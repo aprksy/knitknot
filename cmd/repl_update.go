@@ -1,12 +1,17 @@
+// REPL write handlers (ADR 0009 W3): routed through the pkg/dsl grammar
+// and graph.Execute. Signatures and printed output stay the same; the
+// inmem type-assert hack is gone — updates go through the engine, and
+// storage keeps REPLACE semantics on the merged props the engine sends.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
 
+	"github.com/aprksy/knitknot/pkg/dsl"
 	"github.com/aprksy/knitknot/pkg/graph"
-	"github.com/aprksy/knitknot/pkg/storage/inmem"
 )
 
 func execUpdate(engine *graph.GraphEngine, input string, out io.Writer) error {
@@ -17,109 +22,43 @@ func execUpdate(engine *graph.GraphEngine, input string, out io.Writer) error {
 
 	if strings.HasPrefix(input, "NODE ") {
 		return execUpdateNode(engine, input[5:], out)
-	} else if strings.HasPrefix(input, "EDGE ") {
-		return execUpdateEdge(engine, input[5:], out)
 	}
-
-	return fmt.Errorf("invalid UPDATE syntax")
+	return execUpdateEdge(engine, input[5:], out)
 }
 
 func execUpdateNode(engine *graph.GraphEngine, input string, out io.Writer) error {
-	fields := strings.Fields(input)
-	if len(fields) < 1 {
+	input = strings.TrimSpace(input)
+	if input == "" {
 		return fmt.Errorf("usage: UPDATE NODE <id> [key=value ...]")
 	}
 
-	id := fields[0]
-	propsInput := ""
-	if len(fields) > 1 {
-		propsInput = strings.Join(fields[1:], " ")
+	prog, err := dsl.NewParser(dsl.WriteUpdate + " NODE " + input).ParseProgram()
+	if err != nil {
+		return fmt.Errorf("usage: UPDATE NODE <id> [key=value ...] (%v)", err)
+	}
+	if _, err := engine.Execute(context.Background(), prog); err != nil {
+		return err
 	}
 
-	node, ok := engine.GetNode(id)
-	if !ok {
-		return fmt.Errorf("node %s not found", id)
-	}
-
-	// Update properties
-	newProps := make(map[string]any)
-	for k, v := range node.Props {
-		newProps[k] = v
-	}
-
-	updates := parseProps(propsInput)
-	for k, v := range updates {
-		newProps[k] = v
-	}
-
-	// In real system, you might have UpdateNode method
-	// For now: rebuild storage layer doesn't support mutation → we'll simulate via re-add?
-	// But better: expose mutable access safely
-
-	// Since our storage is private, let's assume we can update
-	storage, ok := engine.Storage().(*inmem.Storage)
-	if !ok {
-		return fmt.Errorf("storage not mutable")
-	}
-
-	if err := storage.UpdateNode(id, newProps); err != nil { // fix: H2
-		return err // fix: H2
-	} // fix: H2
-	fmt.Fprintf(out, "-- Updated node %s\n", id)
+	fmt.Fprintf(out, "-- Updated node %s\n", prog.Write.NodeID)
 	return nil
 }
 
 func execUpdateEdge(engine *graph.GraphEngine, input string, out io.Writer) error {
-	// Format: fromID --rel--> toID [props]
-	arrowStart := strings.Index(input, "--")
-	arrowEnd := strings.LastIndex(input, "-->")
-	if arrowStart == -1 || arrowEnd == -1 || arrowEnd <= arrowStart {
-		return fmt.Errorf("invalid edge format in UPDATE EDGE")
+	input = strings.TrimSpace(input)
+
+	prog, err := dsl.NewParser(dsl.WriteUpdate + " EDGE " + input).ParseProgram()
+	if err != nil {
+		return fmt.Errorf("invalid edge format in UPDATE EDGE (%v)", err)
+	}
+	if len(prog.Write.Props) == 0 {
+		return fmt.Errorf("no properties to update")
+	}
+	if _, err := engine.Execute(context.Background(), prog); err != nil {
+		return err
 	}
 
-	fromID := strings.TrimSpace(input[:arrowStart])
-	middle := input[arrowStart+2 : arrowEnd]
-	toID := strings.TrimSpace(input[arrowEnd+3:])
-
-	rel := strings.TrimSpace(middle)
-	parts := strings.SplitN(toID, " ", 2)   // fix: H2
-	realToID := strings.TrimSpace(parts[0]) // fix: H2
-	propsStr := ""                          // fix: H2
-	if len(parts) == 2 {                    // fix: H2
-		propsStr = strings.TrimSpace(parts[1]) // fix: H2
-	} // fix: H2
-
-	// If there are props after the arrow
-	if propsStr != "" { // fix: H2
-		// Extract props
-		props := parseProps(propsStr)
-
-		edgeID := fmt.Sprintf("%s->%s@%s", fromID, realToID, rel)
-		s, ok := engine.Storage().(*inmem.Storage)
-		if !ok {
-			return fmt.Errorf("storage not mutable")
-		}
-
-		edge, exists := engine.GetEdge(edgeID)
-		if !exists {
-			return fmt.Errorf("edge not found")
-		}
-
-		// Update props
-		if edge.Props == nil {
-			edge.Props = map[string]any{}
-		}
-		for k, v := range props {
-			edge.Props[k] = v
-		}
-
-		if err := s.UpdateEdge(edgeID, edge.Props); err != nil { // fix: H2
-			return err // fix: H2
-		}
-
-		fmt.Fprintf(out, "-- Updated edge %s --%s--> %s\n", fromID, rel, realToID)
-		return nil
-	}
-
-	return fmt.Errorf("no properties to update")
+	e := prog.Write.Edge
+	fmt.Fprintf(out, "-- Updated edge %s --%s--> %s\n", e.From, e.Rel, e.To)
+	return nil
 }

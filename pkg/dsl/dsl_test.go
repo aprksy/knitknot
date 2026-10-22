@@ -7,7 +7,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/aprksy/knitknot/cmd"
 	"github.com/aprksy/knitknot/pkg/dsl"
 	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/aprksy/knitknot/pkg/ports/types"
@@ -181,7 +180,7 @@ var _ = Describe("DSL Parser", func() {
 			ast, err := parse("Find('User').Has('has_skill', 'Go').Where('n.age', '>', 30)")
 			Expect(err).NotTo(HaveOccurred())
 
-			builder, err := cmd.ApplyAST(engine, ast)
+			builder, err := graph.ApplyAST(engine, ast)
 			Expect(err).NotTo(HaveOccurred())
 
 			result, err := builder.Exec(context.Background())

@@ -27,6 +27,7 @@ During the `v0.x` phase:
   - `.Select("n", "v0")`
   - `.OrderBy(...)`, `.Count()`
   - `.WhereIn(...)` for lists
+  - [x] Write statements: `ADDNODE`/`CONNECT`/`UPDATE`/`DELETE`/`DEFINE` in the grammar, single entry `GraphEngine.Execute` (ADR 0009)
 - [ ] Improved output
   - CSV/TSV export
   - Pretty-print paths

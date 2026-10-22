@@ -1,36 +1,28 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 
+	"github.com/aprksy/knitknot/pkg/dsl"
 	"github.com/aprksy/knitknot/pkg/graph"
-	"github.com/aprksy/knitknot/pkg/ports/types"
 )
-
-// definePattern matches: DEFINE has_skill TO Skill VIA name
-var defineRegex = regexp.MustCompile(`(?i)^define\s+(\w+)\s+to\s+(\w+)\s+via\s+(\w+)$`)
 
 func execDefine(engine *graph.GraphEngine, input string, out io.Writer) error {
 	input = strings.TrimSpace(input)
-	matches := defineRegex.FindStringSubmatch(input)
-	if len(matches) != 4 {
-		return fmt.Errorf("invalid syntax. Use: DEFINE <verb> TO <Label> VIA <property>")
+	prog, err := dsl.NewParser(input).ParseProgram()
+	if err != nil || prog.Write == nil || prog.Write.Op != dsl.WriteDefine {
+		return fmt.Errorf("invalid syntax. Use: DEFINE <verb> TO <Label> VIA <property> (%v)", err)
 	}
 
-	verbName := matches[1]
-	targetLabel := matches[2]
-	matchOn := matches[3]
-
-	def := types.Verb{
-		TargetLabel: targetLabel,
-		MatchOn:     matchOn,
+	if _, err := engine.Execute(context.Background(), prog); err != nil {
+		return err
 	}
 
-	engine.RegisterVerb(verbName, def)
-	fmt.Fprintf(out, "-- Verb '%s' defined: → %s.%s\n", verbName, targetLabel, matchOn)
+	w := prog.Write
+	fmt.Fprintf(out, "-- Verb '%s' defined: → %s.%s\n", w.VerbName, w.TargetLabel, w.MatchOn)
 	return nil
 }
 

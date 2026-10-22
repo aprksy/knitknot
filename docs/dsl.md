@@ -2,6 +2,28 @@
 
 The KnitKnot DSL (Domain-Specific Language) allows expressive graph queries using a fluent syntax.
 
+## Write statements (ADR 0009)
+
+Besides queries, one write statement per program:
+
+```text
+ADDNODE Label key=value ...          → creates a node, returns its ID
+CONNECT A --rel--> B                 → connects two nodes (props in the arrow: --rel k=v-->)
+UPDATE NODE <id> key=value ...       → merges properties into a node
+UPDATE EDGE A --rel--> B key=value   → merges properties into an edge
+DELETE NODE <id> / DELETE EDGE A --rel--> B
+DEFINE <verb> TO <Label> VIA <prop>  → registers relationship semantics
+```
+
+- Values are `'quoted strings'`, `numbers` (incl. negative, e.g. `-5`), or bare
+  words (`true` stays a string). **Spaced values need quoting:** `name='John Doe'`
+  — unquoted `name=John Doe` is rejected.
+- Writes return IDs everywhere (REPL output and `GraphEngine.Execute`),
+  and every write fails before mutating: a dangling `CONNECT` or a
+  missing update/delete target changes nothing.
+- `dsl.NewParser(s).ParseProgram()` parses either half (read or write);
+  `engine.Execute(ctx, prog)` runs it — the same path the REPL uses.
+
 ## Basic Structure
 ```text
 Find(label).Has(rel, value).Where(field, op, val).Limit(n)

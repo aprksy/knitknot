@@ -25,6 +25,14 @@ func (l *Lexer) readChar() {
 	l.readPosition++
 }
 
+// peekChar returns the next character without advancing.
+func (l *Lexer) peekChar() byte {
+	if l.readPosition >= len(l.input) {
+		return 0
+	}
+	return l.input[l.readPosition]
+}
+
 func (l *Lexer) NextToken() Token {
 	var tok Token
 
@@ -40,6 +48,29 @@ func (l *Lexer) NextToken() Token {
 		tok = Token{Type: RParen, Literal: ")", PosX: position}
 	case ',':
 		tok = Token{Type: Comma, Literal: ",", PosX: position}
+	case '=':
+		tok = Token{Type: Assign, Literal: "=", PosX: position}
+	case '-':
+		// --rel--> edge syntax, or a signed number (-5).
+		// Anything else keeps the old behaviour: Illegal.
+		if l.peekChar() == '-' {
+			l.readChar() // consume second -
+			if l.peekChar() == '>' {
+				l.readChar() // consume >
+				tok = Token{Type: Arrow, Literal: "-->", PosX: position}
+			} else {
+				tok = Token{Type: DashDash, Literal: "--", PosX: position}
+			}
+			l.readChar() // advance past the token
+			return tok
+		}
+		if isDigit(l.peekChar()) {
+			l.readChar() // consume -
+			num := l.readNumber()
+			tok = Token{Type: Number, Literal: "-" + num, PosX: position}
+			return tok // readNumber already advanced
+		}
+		tok = Token{Type: Illegal, Literal: "-", PosX: position}
 	case '\'':
 		str, terminated := l.readString()
 		if !terminated {

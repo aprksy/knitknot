@@ -1,4 +1,6 @@
-// L4 regression: parseProps keeps spaced values (via execAddNode; parseProps is unexported).
+// L4 regression (ADR 0009 W3): multi-word values are captured through the DSL
+// grammar. Grammar tightening: spaced values need quoting now; unquoted
+// "name=John Doe" no longer joins into "John Doe" (ambiguous split).
 package cmd
 
 import (
@@ -39,10 +41,17 @@ var _ = Describe("execAddNode", func() {
 		globalFlags = saved
 	})
 
-	It("L4: captures multi-word values", func() {
+	It("L4: captures multi-word values (quoted under the grammar)", func() {
 		var out bytes.Buffer
-		Expect(execAddNode(engine, "Person name=John Doe", &out)).To(Succeed())
+		Expect(execAddNode(engine, "Person name='John Doe'", &out)).To(Succeed())
 		Expect(findPerson()["name"]).To(Equal("John Doe"))
+	})
+
+	It("L4: unquoted spaces no longer join (ambiguous under the grammar)", func() {
+		var out bytes.Buffer
+		err := execAddNode(engine, "Person name=John Doe", &out)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("usage: ADDNODE"))
 	})
 
 	It("L4: coerces ints, leaves bools as strings", func() {

@@ -28,7 +28,7 @@ var _ = Describe("DSL Follow (Tier 1)", func() {
 	It("parses and executes a two-hop chain", func() {
 		ast, err := dsl.NewParser("Find('A').Follow('e1').Follow('e2')").Parse()
 		Expect(err).NotTo(HaveOccurred())
-		builder, err := ApplyAST(engine, ast)
+		builder, err := graph.ApplyAST(engine, ast)
 		Expect(err).NotTo(HaveOccurred())
 
 		result, err := builder.Exec(context.Background())
@@ -70,7 +70,7 @@ var _ = Describe("DSL Follow (Tier 1)", func() {
 	It("rejects a bad direction", func() {
 		ast, err := dsl.NewParser("Find('A').Follow('e1', 'sideways')").Parse()
 		Expect(err).NotTo(HaveOccurred())
-		_, err = ApplyAST(engine, ast)
+		_, err = graph.ApplyAST(engine, ast)
 		Expect(err).To(HaveOccurred())
 	})
 })
