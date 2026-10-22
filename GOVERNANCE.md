@@ -121,6 +121,63 @@ can diff plan vs. issues without reading chat history:
 The rule of thumb: **if a human or agent would benefit from knowing why this
 work exists, that reason belongs in an issue, and the work references it.**
 
+### The work loop (how a task flows, with drift guards)
+
+Every task — human idea or agent assignment — flows through the same loop. The
+steps are ordered; skipping one is how drift starts.
+
+1. **Plan.** Write down what will change and why, in one paragraph or a plan
+   file. If the repo already has an issue for it, the plan references it.
+2. **Issue wording.** Turn the plan into an issue: title = the change in one
+   line, body = motivation, scope (what is explicitly OUT), and the acceptance
+   check (how "done" will be verified). An AI agent may draft the wording, but
+   the **governance agent files it** and returns the issue number.
+3. **Register before working.** Post the issue (or reference an existing one)
+   and get its number **before** any branch is created. No issue, no branch.
+4. **Branch.** One concern per branch, named after the issue where one exists:
+   `issue-<n>-<concern>` (e.g. `issue-38-csv-import`), or the conventional
+   `feat/* fix/* chore/* docs/*` prefixes when no issue applies. Never commit to
+   the integration branch directly; if you notice you are on the wrong branch,
+   stop, stash/switch, and re-anchor before continuing.
+5. **Work.** Small commits, conventional prefixes, `Issue: #N | advances` in the
+   commit body when the issue exists.
+6. **Prove.** `make build && make test` (and `make lint`) — real output, real
+   machine name, pasted into the PR body.
+7. **Pull again before the PR.** Re-fetch the integration branch and the issue
+   state right before opening the PR: the issue may have been closed, split, or
+   superseded while you worked; your marker must reflect the fresh state.
+8. **PR with the marker.** Exactly one `Issue: #N | <relationship>` line in the
+   body. The relationship is chosen against the freshly pulled issue state.
+9. **Close the loop.** On merge (or landing on the integration branch), the
+   issue is closed if the marker said `closes`. An agent that did step 2-8 for a
+   human reports the issue number and PR link back, so the human's plan file and
+   GitHub agree.
+
+### Drift guards (what agents must check, in humans' favor)
+
+Agents are the consistency muscle. When working with (or for) a human, an agent
+must check — and politely refuse to violate — these:
+
+- **No issue, no branch.** If a human asks for work that needs a branch but has
+  no issue, the agent drafts the issue wording, files it via the governance
+  agent, and waits for the number before creating the branch.
+- **Wrong-branch detection.** Before the first commit, verify the current branch
+  is a work branch, not the integration branch. If the human is mid-work on the
+  integration branch, surface it and propose the fix (new branch + cherry-pick
+  or stash), not silent compliance.
+- **Stale-issue detection.** Before referencing an issue, re-read its current
+  state (docs/issues.md snapshot or GitHub). An issue closed by someone else in
+  the meantime is not a valid `closes` target.
+- **Marker integrity.** Every PR gets exactly one marker. `none` is a claim to
+  verify, not a default: if the machine cannot check GitHub, write
+  `Issue: unknown-needs-classification` and let the governance agent classify it.
+- **One concern.** A PR that mixes a fix with an unrelated cleanup gets split,
+  even when the human asked for "just do both quickly".
+
+The point of the loop is not bureaucracy: it is that a stranger (or a governance
+agent) can reconstruct **why** any change exists from the repo alone — plan,
+issue, branch, commits, PR — without chat history.
+
 ## Makefile contract
 
 Reserved command names, identical meaning in every repository, so an agent can
