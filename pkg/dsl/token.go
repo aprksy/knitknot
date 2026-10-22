@@ -15,6 +15,8 @@ const (
 	Plus      TokenType = "PLUS"
 	Comma     TokenType = "COMMA"
 	Semicolon TokenType = "SEMICOLON"
+	DashDash  TokenType = "DASHDASH" // --
+	Arrow     TokenType = "ARROW"    // -->
 
 	LParen TokenType = "LPAREN"
 	RParen TokenType = "RPAREN"
