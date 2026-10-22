@@ -68,6 +68,59 @@ only says what changed is half a commit.
 - Mention in the PR body if the change touches a file another machine also
   edits (see *Multi-host* below).
 
+## Issues & provenance
+
+Issues are the queue of record. An issue may be created by a human or an AI
+agent; what matters is that plan and code stay traceable in both directions.
+
+### The traceability marker (required)
+
+Any agent or human who **plans work, opens a PR, or makes a commit** must state
+its issue provenance in the PR body (and commit body when one exists), using
+this marker, exactly once:
+
+    Issue: <number> | <relationship>
+
+`<relationship>` is one of:
+
+- `refs` — the issue is related context but this PR does not move it forward.
+- `advances` — this PR does part of the issue's work; the issue stays open.
+- `closes` — merging this PR completes the issue (GitHub auto-closes it; if the
+  PR targets a non-default branch, the closer must close the issue manually).
+- `none` — genuinely no issue exists and none is needed (typo fixes, CI
+  chunk-size bumps, this governance file itself).
+
+Examples:
+
+    Issue: #37 | closes
+    Issue: none
+
+An agent that plans work **without an existing issue** and the work is more
+than a one-liner must open an issue first, then reference it. An agent that
+observes work done in a commit that closes an issue (direct-to-main fixes,
+agent patches) must close or comment on the issue, saying which commit did it.
+
+### Issue lifecycle
+
+- **Triage is periodic.** Stale issues get a dated reality-check comment: still
+  relevant (with current context) or rotten (close with reason). An issue with
+  no comment in 6 months is presumed rotten.
+- **An issue that is done but unmerged** is closed when its work lands on the
+  integration branch, not when the PR merges.
+- **Closing a rotten issue is not losing history** — the closing comment states
+  why, and the superseding artifact (ADR, docs, another issue) is linked.
+
+### Where provenance lives on disk
+
+Plans and agent briefs that will produce PRs must carry the same marker in the
+plan file (e.g. a `docs/plans/*.md` or an ADR task list), so a governance agent
+can diff plan vs. issues without reading chat history:
+
+    <!-- Issue: #37 | advances -->
+
+The rule of thumb: **if a human or agent would benefit from knowing why this
+work exists, that reason belongs in an issue, and the work references it.**
+
 ## Makefile contract
 
 Reserved command names, identical meaning in every repository, so an agent can
