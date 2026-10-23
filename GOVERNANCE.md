@@ -70,154 +70,46 @@ only says what changed is half a commit.
 
 ## Issues & provenance
 
-Issues are the queue of record. An issue may be created by a human or an AI
-agent; what matters is that plan and code stay traceable in both directions.
+Issues are the queue of record, filed directly by whoever does the work
+(human or AI agent - every coding machine has `gh` authenticated).
 
-### The traceability marker (required)
+### The rule (required)
 
-Any agent or human who **plans work, opens a PR, or makes a commit** must state
-its issue provenance in the PR body (and commit body when one exists), using
-this marker, exactly once:
+1. **Issue before branch.** Work that is more than a one-liner gets an issue
+   first; the branch is cut after the issue exists and is named
+   `issue-<n>-<concern>` (or conventional `feat/* fix/* chore/* docs/*` when
+   no issue applies).
+2. **The traceability marker.** Every PR body carries exactly one line:
 
-    Issue: <number> | <relationship>
+       Issue: <number> | <relationship>
 
-`<relationship>` is one of:
-
-- `refs` — the issue is related context but this PR does not move it forward.
-- `advances` — this PR does part of the issue's work; the issue stays open.
-- `closes` — merging this PR completes the issue (GitHub auto-closes it; if the
-  PR targets a non-default branch, the closer must close the issue manually).
-- `none` — genuinely no issue exists and none is needed (typo fixes, CI
-  chunk-size bumps, this governance file itself).
-
-Examples:
-
-    Issue: #37 | closes
-    Issue: none
-
-An agent that plans work **without an existing issue** and the work is more
-than a one-liner must open an issue first, then reference it. An agent that
-observes work done in a commit that closes an issue (direct-to-main fixes,
-agent patches) must close or comment on the issue, saying which commit did it.
+   `<relationship>`: `refs` (related context), `advances` (partial work,
+   issue stays open), `closes` (merging completes the issue - GitHub
+   auto-closes on the default branch), `none` (genuinely no issue needed).
+3. **Human merge.** PRs are reviewed and merged by the repository owner.
+   The coding agent never merges its own work.
+4. **Ideation docs** (plans, strategies, ADRs) are plain `docs/` PRs - no
+   staging branch, no relay.
 
 ### Issue lifecycle
 
-- **Triage is periodic.** Stale issues get a dated reality-check comment: still
-  relevant (with current context) or rotten (close with reason). An issue with
-  no comment in 6 months is presumed rotten.
-- **An issue that is done but unmerged** is closed when its work lands on the
-  integration branch, not when the PR merges.
-- **Closing a rotten issue is not losing history** — the closing comment states
-  why, and the superseding artifact (ADR, docs, another issue) is linked.
+- Stale issues get a dated reality-check comment: still relevant (with
+  current context) or rotten (closed with reason + link to the superseding
+  artifact). No comment in 6 months = presumed rotten.
+- An issue is closed when its work lands on the integration branch.
+- Closing a rotten issue states why; nothing is silently deleted.
 
-### Where provenance lives on disk
+### Drift guards
 
-Plans and agent briefs that will produce PRs must carry the same marker in the
-plan file (e.g. a `docs/plans/*.md` or an ADR task list), so a governance agent
-can diff plan vs. issues without reading chat history:
+- **No issue, no branch** - open the issue first.
+- **Wrong-branch check** before the first commit; if you are on an
+  integration branch, stop and move.
+- **Marker integrity**: `none` is a claim, not a default. A PR without a
+  marker gets bounced by the reviewer.
+- **One concern per PR**, even when asked to "just do both quickly".
 
-    <!-- Issue: #37 | advances -->
-
-The rule of thumb: **if a human or agent would benefit from knowing why this
-work exists, that reason belongs in an issue, and the work references it.**
-
-### The work loop (how a task flows, with drift guards)
-
-Every task — human idea or agent assignment — flows through the same loop. The
-steps are ordered; skipping one is how drift starts.
-
-1. **Plan.** Write down what will change and why, in one paragraph or a plan
-   file. If the repo already has an issue for it, the plan references it.
-2. **Issue wording.** Turn the plan into an issue: title = the change in one
-   line, body = motivation, scope (what is explicitly OUT), and the acceptance
-   check (how "done" will be verified). An AI agent may draft the wording, but
-   the **governance agent files it** and returns the issue number.
-3. **Register before working.** Post the issue (or reference an existing one)
-   and get its number **before** any branch is created. No issue, no branch.
-4. **Branch.** One concern per branch, named after the issue where one exists:
-   `issue-<n>-<concern>` (e.g. `issue-38-csv-import`), or the conventional
-   `feat/* fix/* chore/* docs/*` prefixes when no issue applies. Never commit to
-   the integration branch directly; if you notice you are on the wrong branch,
-   stop, stash/switch, and re-anchor before continuing.
-5. **Work.** Small commits, conventional prefixes, `Issue: #N | advances` in the
-   commit body when the issue exists.
-6. **Prove.** `make build && make test` (and `make lint`) — real output, real
-   machine name, pasted into the PR body.
-7. **Pull again before the PR.** Re-fetch the integration branch and the issue
-   state right before opening the PR: the issue may have been closed, split, or
-   superseded while you worked; your marker must reflect the fresh state.
-8. **PR with the marker.** Exactly one `Issue: #N | <relationship>` line in the
-   body. The relationship is chosen against the freshly pulled issue state.
-9. **Close the loop.** On merge (or landing on the integration branch), the
-   issue is closed if the marker said `closes`. An agent that did step 2-8 for a
-   human reports the issue number and PR link back, so the human's plan file and
-   GitHub agree.
-
-
-### The seed protocol — `plan/seed` (ideation staging)
-
-Ideation and discussion outputs need a home before an issue exists. Every
-governed repository carries a branch named **`plan/seed`**, created and
-maintained by the governance agent. It is the seed inbox.
-
-- **Who writes:** coding agents and humans. One seed = one commit:
-  `docs/plans/seed-<slug>.md` (title, motivation, scope, acceptance check —
-  terse but self-contained). Commit message: `plan(seed): <slug>`.
-- **Push directly to the remote on completion.** No waiting, no local
-  hoarding — the branch push is the delivery. This is the **only push to a
-  shared ref permitted without an issue**.
-- **Guarantees (governance agent):** `plan/seed` is append-only — never
-  rebased, never force-pushed, seeds never deleted.
-- **Processing:** the governance agent watches `plan/seed`, files an issue
-  from each seed, and stamps the seed file header with `Issue: #N` in a
-  follow-up commit on the same branch. The feature branch
-  (`issue-<n>-<slug>`) is created by the branching agent from the stamped
-  seed.
-- **What may be committed here — only seed documents**
-  (`docs/plans/seed-*.md`). Any other path (code, tests, config) is
-  implementation work: it belongs on an `issue-<n>-*` branch, and from its
-  first commit it is PR-bound. Implementation commits landing on `plan/seed`
-  are rogue: the governance agent moves them to a proper issue branch (or
-  bounces them) and notes the repair in the ledger.
-- **Bootstrap:** when a new repository adopts this governance, creating
-  `plan/seed` is part of setup, done by the governance agent at the same
-  time the GOVERNANCE.md lands.
-- If the governance agent is unreachable, deliver the seed via the owner
-  (chat/PM) — fallback, not protocol.
-
-### Rogue-branch repair
-
-A pushed branch with no issue, no marker, and no PR is unregistered work.
-It surfaces in the push-watch feed; the governance agent then either (a)
-files an issue retroactively from the branch content, links it in a comment
-("filed late"), and lets a marker be added to the PR, or (b) if the work is
-unwanted, recommends deletion. Unregistered does not mean invisible — it
-means Repair the ledger, then proceed.
-
-### Drift guards (what agents must check, in humans' favor)
-
-Agents are the consistency muscle. When working with (or for) a human, an agent
-must check — and politely refuse to violate — these:
-
-- **No issue, no branch.** If a human asks for work that needs a branch but has
-  no issue, the agent drafts the issue wording, files it via the governance
-  agent, and waits for the number before creating the branch.
-- **Wrong-branch detection.** Before the first commit, verify the current branch
-  is a work branch, not the integration branch. If the human is mid-work on the
-  integration branch, surface it and propose the fix (new branch + cherry-pick
-  or stash), not silent compliance.
-- **Stale-issue detection.** Before referencing an issue, re-read its current
-  state (docs/issues.md snapshot or GitHub). An issue closed by someone else in
-  the meantime is not a valid `closes` target.
-- **Marker integrity.** Every PR gets exactly one marker. `none` is a claim to
-  verify, not a default: if the machine cannot check GitHub, write
-  `Issue: unknown-needs-classification` and let the governance agent classify it.
-- **One concern.** A PR that mixes a fix with an unrelated cleanup gets split,
-  even when the human asked for "just do both quickly".
-
-The point of the loop is not bureaucracy: it is that a stranger (or a governance
-agent) can reconstruct **why** any change exists from the repo alone — plan,
-issue, branch, commits, PR — without chat history.
+The rule of thumb: if a human or agent would benefit from knowing why this
+work exists, that reason belongs in an issue, and the work references it.
 
 ## Makefile contract
 
