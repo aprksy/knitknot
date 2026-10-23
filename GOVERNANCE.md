@@ -173,6 +173,12 @@ maintained by the governance agent. It is the seed inbox.
   follow-up commit on the same branch. The feature branch
   (`issue-<n>-<slug>`) is created by the branching agent from the stamped
   seed.
+- **What may be committed here — only seed documents**
+  (`docs/plans/seed-*.md`). Any other path (code, tests, config) is
+  implementation work: it belongs on an `issue-<n>-*` branch, and from its
+  first commit it is PR-bound. Implementation commits landing on `plan/seed`
+  are rogue: the governance agent moves them to a proper issue branch (or
+  bounces them) and notes the repair in the ledger.
 - **Bootstrap:** when a new repository adopts this governance, creating
   `plan/seed` is part of setup, done by the governance agent at the same
   time the GOVERNANCE.md lands.
