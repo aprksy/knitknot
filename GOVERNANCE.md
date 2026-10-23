@@ -153,6 +153,41 @@ steps are ordered; skipping one is how drift starts.
    human reports the issue number and PR link back, so the human's plan file and
    GitHub agree.
 
+
+### The seed protocol — `plan/seed` (ideation staging)
+
+Ideation and discussion outputs need a home before an issue exists. Every
+governed repository carries a branch named **`plan/seed`**, created and
+maintained by the governance agent. It is the seed inbox.
+
+- **Who writes:** coding agents and humans. One seed = one commit:
+  `docs/plans/seed-<slug>.md` (title, motivation, scope, acceptance check —
+  terse but self-contained). Commit message: `plan(seed): <slug>`.
+- **Push directly to the remote on completion.** No waiting, no local
+  hoarding — the branch push is the delivery. This is the **only push to a
+  shared ref permitted without an issue**.
+- **Guarantees (governance agent):** `plan/seed` is append-only — never
+  rebased, never force-pushed, seeds never deleted.
+- **Processing:** the governance agent watches `plan/seed`, files an issue
+  from each seed, and stamps the seed file header with `Issue: #N` in a
+  follow-up commit on the same branch. The feature branch
+  (`issue-<n>-<slug>`) is created by the branching agent from the stamped
+  seed.
+- **Bootstrap:** when a new repository adopts this governance, creating
+  `plan/seed` is part of setup, done by the governance agent at the same
+  time the GOVERNANCE.md lands.
+- If the governance agent is unreachable, deliver the seed via the owner
+  (chat/PM) — fallback, not protocol.
+
+### Rogue-branch repair
+
+A pushed branch with no issue, no marker, and no PR is unregistered work.
+It surfaces in the push-watch feed; the governance agent then either (a)
+files an issue retroactively from the branch content, links it in a comment
+("filed late"), and lets a marker be added to the PR, or (b) if the work is
+unwanted, recommends deletion. Unregistered does not mean invisible — it
+means Repair the ledger, then proceed.
+
 ### Drift guards (what agents must check, in humans' favor)
 
 Agents are the consistency muscle. When working with (or for) a human, an agent
