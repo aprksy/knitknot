@@ -10,6 +10,7 @@ import (
 
 	"github.com/aprksy/knitknot/extensions/cti"
 	"github.com/aprksy/knitknot/pkg/dsl"
+	"github.com/aprksy/knitknot/pkg/exporter/csv"
 	"github.com/aprksy/knitknot/pkg/exporter/dot"
 	"github.com/aprksy/knitknot/pkg/exporter/parquet"
 	"github.com/aprksy/knitknot/pkg/graph"
@@ -26,6 +27,7 @@ const (
 	FormatJSON    ExportFormat = "json"
 	FormatSTIX    ExportFormat = "stix" // ext: cti-export
 	FormatParquet ExportFormat = "parquet"
+	FormatCSV     ExportFormat = "csv"
 )
 
 var exportCmd = &cobra.Command{
@@ -43,15 +45,15 @@ var exportFlags struct {
 
 func init() {
 	exportCmd.Flags().StringVar(&globalFlags.subgraph, "subgraph", "", "Run query within a subgraph context")
-	exportCmd.Flags().StringVarP(&exportFlags.format, "format", "F", "dot", "Output format (dot, svg, json, stix, parquet)") // ext: cti-export
-	exportCmd.Flags().StringVarP(&exportFlags.output, "output", "o", "", "Output file (default stdout; prefix for parquet: writes <prefix>_nodes.parquet and <prefix>_edges.parquet)")
+	exportCmd.Flags().StringVarP(&exportFlags.format, "format", "F", "dot", "Output format (dot, svg, json, stix, parquet, csv)") // ext: cti-export
+	exportCmd.Flags().StringVarP(&exportFlags.output, "output", "o", "", "Output file (default stdout; prefix for parquet/csv: writes <prefix>_nodes.<ext> and <prefix>_edges.<ext>)")
 	exportCmd.Flags().StringVarP(&exportFlags.query, "query", "q", "", "Run a DSL query and export only the matching subgraph")
 	RootCmd.AddCommand(exportCmd)
 }
 
 func runExport(cmd *cobra.Command, args []string) (err error) {
 	format := ExportFormat(exportFlags.format)
-	if format != FormatDOT && format != FormatSVG && format != FormatJSON && format != FormatSTIX && format != FormatParquet { // ext: cti-export
+	if format != FormatDOT && format != FormatSVG && format != FormatJSON && format != FormatSTIX && format != FormatParquet && format != FormatCSV { // ext: cti-export
 		return fmt.Errorf("unsupported format: %s", format)
 	}
 
@@ -69,13 +71,13 @@ func runExport(cmd *cobra.Command, args []string) (err error) {
 		engine = engine.WithSubgraph(globalFlags.subgraph)
 	}
 
-	// Parquet writes two files from the -o prefix, not a single file.
-	if format == FormatParquet && exportFlags.output == "" {
-		return fmt.Errorf("parquet export requires -o output prefix")
+	// Parquet/CSV write two files from the -o prefix, not a single file.
+	if (format == FormatParquet || format == FormatCSV) && exportFlags.output == "" {
+		return fmt.Errorf("%s export requires -o output prefix", format)
 	}
 
 	var writer io.Writer = os.Stdout
-	if exportFlags.output != "" && format != FormatParquet {
+	if exportFlags.output != "" && format != FormatParquet && format != FormatCSV {
 		file, err := os.Create(exportFlags.output)
 		if err != nil {
 			return err
@@ -172,6 +174,8 @@ func runExport(cmd *cobra.Command, args []string) (err error) {
 		return exportToSTIX(engine, writer) // ext: cti-export
 	case FormatParquet:
 		return exportToParquet(nodes, edges, exportFlags.output)
+	case FormatCSV:
+		return exportToCSV(nodes, edges, exportFlags.output)
 	}
 
 	return nil
@@ -220,6 +224,29 @@ func exportToDOT(nodes []*types.Node, edges []*types.Edge, w io.Writer) error {
 
 func exportToParquet(nodes []*types.Node, edges []*types.Edge, outputPrefix string) error {
 	return parquet.ExportToParquet(nodes, edges, outputPrefix)
+}
+
+func exportToCSV(nodes []*types.Node, edges []*types.Edge, outputPrefix string) error {
+	nf, err := os.Create(outputPrefix + "_nodes.csv")
+	if err != nil {
+		return err
+	}
+	if err := csv.ExportNodes(nodes, nf); err != nil {
+		nf.Close()
+		return err
+	}
+	if err := nf.Close(); err != nil {
+		return err
+	}
+	ef, err := os.Create(outputPrefix + "_edges.csv")
+	if err != nil {
+		return err
+	}
+	if err := csv.ExportEdges(edges, ef); err != nil {
+		ef.Close()
+		return err
+	}
+	return ef.Close()
 }
 
 // exportToSTIX serializes the engine's storage as a STIX 2.1 bundle. // ext: cti-export
