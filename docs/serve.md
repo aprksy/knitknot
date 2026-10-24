@@ -96,8 +96,16 @@ is not implemented (explicitly deferred, not forgotten).
 ## Limits (v0.2.0)
 
 - One statement per request; no multi-statement transactions.
-- No CSV/SQL export over HTTP yet (Phase 2; `pkg/exporter` has
-  `dot`/`parquet` only).
+- Exporters exist (`csv`, `postgres`, `parquet`, `dot`) but none are
+  served over HTTP yet.
 - No server-side batching: bulk loads are N requests; in-process
-  callers should use `GraphEngine.Execute` directly (~100K writes/s
-  vs ~4K statements/s through the REPL/HTTP path at 30K statements).
+  callers should use `GraphEngine.Execute` directly. Measured rates
+  (same machine, default in-memory store):
+  - in-process `ParseProgram`+`Execute`: ~100–160K writes/s
+    (`pkg/graph/execute_stress_test.go`: 10,150 nodes in ~89ms,
+    20,000 edges in ~174ms).
+  - REPL loopback (piped stdin, mixed add/connect/update):
+    ~4K statements/s (`demo/datagen-stretch.sh`: 11,156 in ~2.6s;
+    29,721 in ~7.4s).
+  - Loopback HTTP has no measured figure — do not quote the REPL
+    number for it (it pays a round-trip and JSON per statement).
