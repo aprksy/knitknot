@@ -13,6 +13,7 @@ import (
 	"github.com/aprksy/knitknot/pkg/exporter/csv"
 	"github.com/aprksy/knitknot/pkg/exporter/dot"
 	"github.com/aprksy/knitknot/pkg/exporter/parquet"
+	"github.com/aprksy/knitknot/pkg/exporter/postgres"
 	"github.com/aprksy/knitknot/pkg/graph"
 	"github.com/aprksy/knitknot/pkg/ports/types"
 	"github.com/aprksy/knitknot/pkg/storage/inmem"
@@ -22,12 +23,13 @@ import (
 type ExportFormat string
 
 const (
-	FormatDOT     ExportFormat = "dot"
-	FormatSVG     ExportFormat = "svg" // requires `dot` command
-	FormatJSON    ExportFormat = "json"
-	FormatSTIX    ExportFormat = "stix" // ext: cti-export
-	FormatParquet ExportFormat = "parquet"
-	FormatCSV     ExportFormat = "csv"
+	FormatDOT      ExportFormat = "dot"
+	FormatSVG      ExportFormat = "svg" // requires `dot` command
+	FormatJSON     ExportFormat = "json"
+	FormatSTIX     ExportFormat = "stix" // ext: cti-export
+	FormatParquet  ExportFormat = "parquet"
+	FormatCSV      ExportFormat = "csv"
+	FormatPostgres ExportFormat = "postgres"
 )
 
 var exportCmd = &cobra.Command{
@@ -45,7 +47,7 @@ var exportFlags struct {
 
 func init() {
 	exportCmd.Flags().StringVar(&globalFlags.subgraph, "subgraph", "", "Run query within a subgraph context")
-	exportCmd.Flags().StringVarP(&exportFlags.format, "format", "F", "dot", "Output format (dot, svg, json, stix, parquet, csv)") // ext: cti-export
+	exportCmd.Flags().StringVarP(&exportFlags.format, "format", "F", "dot", "Output format (dot, svg, json, stix, parquet, csv, postgres)") // ext: cti-export
 	exportCmd.Flags().StringVarP(&exportFlags.output, "output", "o", "", "Output file (default stdout; prefix for parquet/csv: writes <prefix>_nodes.<ext> and <prefix>_edges.<ext>)")
 	exportCmd.Flags().StringVarP(&exportFlags.query, "query", "q", "", "Run a DSL query and export only the matching subgraph")
 	RootCmd.AddCommand(exportCmd)
@@ -53,7 +55,7 @@ func init() {
 
 func runExport(cmd *cobra.Command, args []string) (err error) {
 	format := ExportFormat(exportFlags.format)
-	if format != FormatDOT && format != FormatSVG && format != FormatJSON && format != FormatSTIX && format != FormatParquet && format != FormatCSV { // ext: cti-export
+	if format != FormatDOT && format != FormatSVG && format != FormatJSON && format != FormatSTIX && format != FormatParquet && format != FormatCSV && format != FormatPostgres { // ext: cti-export
 		return fmt.Errorf("unsupported format: %s", format)
 	}
 
@@ -176,6 +178,8 @@ func runExport(cmd *cobra.Command, args []string) (err error) {
 		return exportToParquet(nodes, edges, exportFlags.output)
 	case FormatCSV:
 		return exportToCSV(nodes, edges, exportFlags.output)
+	case FormatPostgres:
+		return postgres.ExportToPostgres(nodes, edges, writer)
 	}
 
 	return nil
