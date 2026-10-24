@@ -1,6 +1,8 @@
 # STRATEGY — knitknot as a graph engine behind LLM-assisted data generation
 
-**Status:** proposal — awaiting owner approval before any code.
+**Status:** accepted — owner approved by merging the server (PR #60).
+Phase 1 shipped; Phases 2+ pending. This document is now a record
+plus the remaining plan, not a gate.
 **Author:** Hermes (agent) on behalf of aprksy
 **Date:** 2026-10-21
 **Scope:** strategy only. No implementation in this document.
@@ -205,10 +207,17 @@ verified**. No code should be pushed from `oci-srv` under this strategy; Phase 0
 onwards begins when `sxi-work` returns, or when the owner explicitly authorises a
 different machine for a given PR.
 
+[updated 2026-10-24: the constraint above is spent — Phases 0–1 shipped
+via PRs #45 and #60. It stays as the record of how this strategy started.]
+
 ---
 
 ## 9. Definition of done for this strategy
 
-- Owner approves the boundary in §2 and the phasing in §6.
-- Phase 0 is opened as a PR and merged before Phase 1 begins.
-- An ADR exists for AD-1..AD-4 before any server code lands.
+- [x] Owner approves the boundary in §2 and the phasing in §6
+  (approved by merging the server, PR #60, 2026-10-24).
+- [x] Phase 0 is opened as a PR and merged before Phase 1 begins (PR #45).
+- [x] An ADR exists for AD-1..AD-4 before any server code lands (ADR 0010).
+- [x] Phase 1 server shipped (PR #60, `Issue: 57 | closes`).
+- [ ] Phase 2 exporters (CSV/SQL) — separate issue, not started.
+- [ ] Phase 3 docs/ADR follow-ups; Phase 4+ outside this repository.
