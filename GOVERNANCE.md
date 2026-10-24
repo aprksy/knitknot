@@ -81,11 +81,14 @@ Issues are the queue of record, filed directly by whoever does the work
    no issue applies).
 2. **The traceability marker.** Every PR body carries exactly one line:
 
-       Issue: <number> | <relationship>
+       Issue: #<number> | <relationship>
 
    `<relationship>`: `refs` (related context), `advances` (partial work,
    issue stays open), `closes` (merging completes the issue - GitHub
    auto-closes on the default branch), `none` (genuinely no issue needed).
+   The `#` is load-bearing: GitHub only links and auto-closes on the
+   `closes #N` form. `Issue: 63 | closes` matches nothing — that exact
+   mistake shipped twice (exporter PRs) before this line was tightened.
 3. **Human merge.** PRs are reviewed and merged by the repository owner.
    The coding agent never merges its own work.
 4. **Ideation docs** (plans, strategies, ADRs) are plain `docs/` PRs - no
