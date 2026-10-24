@@ -3,6 +3,7 @@
 - **Status:** accepted (design) — no code yet; gates the #70 implementation
 - **Date:** 2026-10-24
 - **Deciders:** aprksy (owner)
+- **Drafted by:** Muse Spark (agent)
 
 ## Context
 
@@ -38,12 +39,17 @@ atomicity promise.** Rationale:
 ### Wire shape (new endpoint, old one frozen)
 
 `POST /v1/execute_batch   {"program": "<statements, newline-delimited>"}`
+
 → `{"ok": true|false, "executed": n, "results": [<per-statement>]}`
+
 where each per-statement result carries the same fields as
 `/v1/execute` (`results` rows or `node_id`/`edge_id`/`verb`, or
 `error`). Execution stops at the first failing statement; statements
-after it never run; `executed` counts the ones that did. `/v1/execute`
-keeps its exact current shape — existing clients are untouched.
+after it never run. `executed` counts only the statements that
+succeeded — it **excludes** the failing one — so on failure `results`
+has exactly `executed + 1` entries with the last carrying `error`.
+`/v1/execute` keeps its exact current shape — existing clients are
+untouched.
 
 ### Grammar: newline delimits, strings exempt
 
@@ -60,7 +66,8 @@ Trailing garbage after the last statement is an error, as today.
   unchanged — the batcher reuses `GraphEngine.Execute` per statement.
 - Partial failure is observable (`executed` + per-statement `error`),
   never silent — the false-green rule applies: tests must assert the
-  failing statement's index and that later statements did not run.
+  failing statement's index, `len(results) == executed + 1` with the
+  error on the last entry, and that later statements did not run.
 - The no-atomicity promise is documented in `docs/serve.md` when the
   endpoint lands (not in this ADR alone).
 
