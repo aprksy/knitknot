@@ -67,6 +67,16 @@ EXCLUDES=(
   # The vendored pack is JSON full of secret-shaped literals (the very patterns
   # these rules look for), so scanning it flags itself. It is data, not code.
   --exclude tools/opengrep
+  # Tooling: this script and its siblings describe the very patterns being
+  # detected, so scanning them is the scanner reading its own rulebook.
+  --exclude tools/opengrep-gate.sh
+  # Markdown prose: spec and contract documents describe protocols and API shapes
+  # rather than implementing them, and markdown cannot carry a nosemgrep. Scanning
+  # it produced an insecure-websocket finding on a requirement document.
+  --exclude 'specs/**/*.md'
+  --exclude '**/contracts/**/*.md'
+  --exclude 'docs/**/*.md'
+  --exclude '*.md'
   # Dev seed data: hand-written fixtures whose bcrypt hashes are the documented
   # dev password ('clichse-dev'), not credentials. Scanning them produces 11
   # identical findings nobody can act on.

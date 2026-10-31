@@ -29,6 +29,16 @@ jobs:
       # package manager: this must be the same version on every host.
       - name: opengrep
         run: |
-          export PATH="/opt/opengrep/bin:$PATH"
+          # Prefer the PINNED install. A distro/AUR package is a different build
+          # that can change without a commit, which makes findings unreproducible.
+          if [ -x /opt/opengrep/bin/opengrep ]; then
+            export PATH="/opt/opengrep/bin:$PATH"
+          elif [ -x $HOME/.local/bin/opengrep ]; then
+            export PATH="$HOME/.local/bin:$PATH"
+          else
+            echo "opengrep not installed at /opt/opengrep/bin or ~/.local/bin" >&2
+            echo "install it: sudo bash tools/opengrep/install-opengrep.sh" >&2
+            exit 3
+          fi
           opengrep --version
           bash tools/opengrep-gate.sh
