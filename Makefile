@@ -56,3 +56,7 @@ clean:
 ## help: list available targets
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## /  make /' | sed 's/:/ —/'
+
+## opengrep: static analysis; ERROR-severity findings fail, warnings are reported
+opengrep:
+	@bash tools/opengrep-gate.sh
