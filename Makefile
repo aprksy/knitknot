@@ -6,7 +6,7 @@ LDFLAGS := -X github.com/aprksy/knitknot/cmd.version=$(VERSION) \
            -X github.com/aprksy/knitknot/cmd.commit=$(COMMIT) \
            -X github.com/aprksy/knitknot/cmd.buildDate=$(BUILTAT)
 
-.PHONY: build install test lint vet fmt-check fmt run clean help
+.PHONY: build install test lint vet fmt-check fmt run clean help test-cover
 
 ## build: compile the CLI
 build:
@@ -23,6 +23,11 @@ test:
 ## test-race: run all tests under the race detector
 test-race:
 	go test ./... -race -count=1
+
+## test-cover: run all tests with coverage and fail if total is below 70%
+test-cover:
+	go test ./... -coverprofile=cover.out -count=1
+	@go tool cover -func=cover.out | awk '{ if ($$1 == "total:") { found=1; pct=$$3; sub(/%/, "", pct); if (pct + 0 < 70) { printf "coverage %s%% below floor 70%%\n", pct; exit 1 } printf "coverage %s%% meets floor 70%%\n", pct } } END { if (!found) { print "no total coverage line found"; exit 1 } }'
 
 ## lint: static analysis + formatting check (go vet + gofmt)
 lint: vet fmt-check
@@ -51,6 +56,7 @@ run: build
 ## clean: remove build artefacts
 clean:
 	rm -f knitknot
+	rm -f cover.out
 	rm -rf coverage.html merged.coverprofile
 
 ## help: list available targets
