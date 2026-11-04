@@ -2,7 +2,7 @@
 
 > **Living document.** A point-in-time snapshot of what users can rely on
 > with the current build of knitknot. Updated as the codebase changes.
-> Last updated: 2026-09-23.
+> Last updated: 2026-11-04.
 
 This document is intentionally candid. It describes behavior as it is, not
 as we wish it were. If a statement here disagrees with reality, reality wins
@@ -144,20 +144,25 @@ below) and have been used against the shipped `data.gob` sample:
 
 ### Test coverage gaps
 
-> [updated 2026-09-23] DOT exporter now covered (was 0%); new rows for
-> `extensions`, `extensions/cti`, `pkg/ports/storage`.
+> [updated 2026-11-04] Re-measured via `go test ./... -cover`:
+> `pkg/graph` corrected down (~73% claimed → 56.5% measured — the old
+> figure was overstated, not a regression); risers corrected up; new row
+> for untested `pkg/storage/file`. Previous note: DOT exporter now
+> covered (was 0%); new rows for `extensions`, `extensions/cti`,
+> `pkg/ports/storage`.
 
 | Package                     | Coverage | Gap                                                |
 | --------------------------- | -------- | -------------------------------------------------- |
-| `pkg/storage/inmem`         | ~91%     | Subgraph mutation paths lightly exercised          |
-| `pkg/query`                 | ~80%     | Limit semantics, edge-filter ordering              |
-| `pkg/dsl`                   | ~76%     | Fuzz target exists; not in CI                      |
-| `pkg/graph`                 | ~73%     | `WithQueryEngine`, `WithVerbs` paths untested      |
-| `cmd`                       | ~23%     | `exportToSVG`, `printExplain` happy paths          |
-| `pkg/exporter/dot`          | covered  | Quoting/escaping, sorted output, and dedup specs ship (previously 0%) |
-| `extensions`                | covered  | Registry contract: duplicate/empty/nil/frozen rejects |
-| `extensions/cti`            | covered  | STIX import round-trip + export specs against the `minimal-bundle.json` fixture |
-| `pkg/ports/storage`         | covered  | Contract check that inmem implements `VersionedStorage` |
+| `pkg/storage/inmem`         | 91.9%    | Subgraph mutation paths lightly exercised          |
+| `pkg/query`                 | 82.8%    | Limit semantics, edge-filter ordering              |
+| `pkg/dsl`                   | 81.6%    | Fuzz target exists; not in CI                      |
+| `pkg/graph`                 | 56.5%    | Far below the ~73% previously claimed here — the old number was overstated; `WithQueryEngine`, `WithVerbs` paths untested |
+| `cmd`                       | 39.8%    | `exportToSVG`, `printExplain` happy paths          |
+| `pkg/exporter/dot`          | 92.2%    | Quoting/escaping, sorted output, and dedup specs ship (previously 0%) |
+| `extensions`                | 80.4%    | Registry contract: duplicate/empty/nil/frozen rejects |
+| `extensions/cti`            | 81.8%    | STIX import round-trip + export specs against the `minimal-bundle.json` fixture |
+| `pkg/ports/storage`         | 100%     | Contract check that inmem implements `VersionedStorage` |
+| `pkg/storage/file`          | 0% (no test files) | Untested — no tests ship for this package |
 
 Coverage figures are from `go test -cover ./...` and are statement counts,
 not branch coverage. Numbers drift with every change.
