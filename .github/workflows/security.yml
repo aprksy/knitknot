@@ -1,0 +1,44 @@
+name: Security
+
+# Static analysis in its own workflow rather than a step in an existing job.
+# Repos here split CI across path-filtered workflows, which would run the scan
+# several times on one push and not at all on another.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-analysis:
+    name: static analysis
+    runs-on: [self-hosted, linux, knitknot]
+    steps:
+      - uses: actions/checkout@v4
+
+      # The runner does not read ~/.bashrc, so the pinned install is added to
+      # PATH explicitly. See docs/ci-static-analysis.md for why /opt and not a
+      # package manager: this must be the same version on every host.
+      - name: opengrep
+        run: |
+          # Prefer the PINNED install. A distro/AUR package is a different build
+          # that can change without a commit, which makes findings unreproducible.
+          if [ -x /opt/opengrep/bin/opengrep ]; then
+            export PATH="/opt/opengrep/bin:$PATH"
+          elif [ -x $HOME/.local/bin/opengrep ]; then
+            export PATH="$HOME/.local/bin:$PATH"
+          else
+            echo "opengrep not installed at /opt/opengrep/bin or ~/.local/bin" >&2
+            echo "install it: sudo bash tools/opengrep/install-opengrep.sh" >&2
+            exit 3
+          fi
+          opengrep --version
+          bash tools/opengrep-gate.sh
