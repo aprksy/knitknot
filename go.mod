@@ -2,8 +2,6 @@ module github.com/aprksy/knitknot
 
 go 1.25.1
 
-replace github.com/aprksy/knitknot => ./
-
 require (
 	github.com/TcM1911/stix2 v0.10.4
 	github.com/chzyer/readline v1.5.1
