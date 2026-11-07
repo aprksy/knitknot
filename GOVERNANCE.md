@@ -25,6 +25,22 @@ the name is the one to use in commits, notes, issue comments and this file.
 
 ---
 
+## Worktrees
+
+Worktrees live **inside the project directory**, never loose in `$HOME`:
+
+- `.slim/worktrees/<lane>` — lanes owned by the `slim` tooling
+- `.worktree/<name>` — ad-hoc workspace for a task or an agent
+
+Both paths are git-ignored. A worktree at `~/<project>-<task>` or `~/homelabs/<task>` is a review
+blocker: it hides the branch from the project's `git worktree list` and outlives the PR that created it.
+
+- Remove the worktree in the same pass that merges its branch. A merged branch does not need a checkout.
+- Never leave uncommitted work in a worktree. Commit it to the branch first — the worktree is
+  disposable, the commit is not.
+- `/tmp/<project-name>` (e.g. `/tmp/clichse-probe`) is always allowed for throwaway verification
+  clones. Nothing there is authoritative and it may be deleted at any time.
+
 ## Branching
 
 ```
