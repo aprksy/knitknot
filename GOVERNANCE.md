@@ -31,7 +31,7 @@ Work is specified before it is built, and a milestone — not a feature — is t
 1. **Constitution** (`.specify/memory/constitution.md`) — one page, invariants only: what this repo
    must never break. It restates the rules in this file; it does not describe the project. Amend it by
    PR, never inline.
-2. **One spec per milestone** (`.specify/specs/<nnn>-<slug>/spec.md`) — problem, scope, the invariants
+2. **One spec per milestone** (`specs/<nnn>-<slug>/spec.md`) — problem, scope, the invariants
    it touches, and acceptance criteria a test can fail. One page. Forward-looking only: existing
    behaviour is referenced (`STATUS.md`, `contracts/`), never re-described.
 3. **Plan, then tasks** — `/speckit.plan` then `/speckit.tasks`. The task list becomes the issue list:
