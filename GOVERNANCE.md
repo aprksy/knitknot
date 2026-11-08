@@ -12,18 +12,36 @@ the name is the one to use in commits, notes, issue comments and this file.
 
 | Name | Address | Access | Role |
 |---|---|---|---|
-| `sxi-work` | `10.0.10.2` | `ssh sxi-work` (port 2022) | **Primary work machine.** 12 cores, biggest disk. Work starts and is verified here |
-| `oci-srv` | `10.0.10.7` | `ssh oci-srv` | **Second machine.** Used when `sxi-work` is unreachable. Follows — pull only, never leads |
+| `oci-srv` | `10.0.10.7` | `ssh oci-srv` | **Default dev host** (aarch64, 2 vCPU). Code, light CI, light serving, small test runs. Also production — do not saturate |
+| `sxi-work` | `10.0.10.2` | `ssh sxi-work` (port 2022) | **Heavy lane** (x86_64, 12 cores, biggest disk). Heavy CI, mobile/godot/playwright/client builds. Work queues here rather than moving to `oci-srv` |
 | `main-vnic` | `10.0.10.1` | local | WireGuard hub, LLM gateway (`:8080`), Hermes node. **Infra only — no clones** |
 | `phone` | `10.0.10.5` | `ssh phone` | Field node (proot Ubuntu in Termux) |
 
 - Refer to a machine by name, not IP: "verified on `sxi-work`", not "10.0.10.2".
 - **`main-vnic` is not a workspace.** It holds no working clones; do not start
   work there.
-- `sxi-work` is where work happens. `oci-srv` is a follower: keeping it in sync
-  is a `git pull`, and it is *expected* to be behind.
+- Work starts on `oci-srv`. Heavy or device-bound work **waits for `sxi-work`**; it does not move to `oci-srv`. Refer to a machine by name, not IP.
 
 ---
+
+## Spec-driven milestones
+
+Work is specified before it is built, and a milestone — not a feature — is the unit of governance.
+
+1. **Constitution** (`.specify/memory/constitution.md`) — one page, invariants only: what this repo
+   must never break. It restates the rules in this file; it does not describe the project. Amend it by
+   PR, never inline.
+2. **One spec per milestone** (`specs/<nnn>-<slug>/spec.md`) — problem, scope, the invariants
+   it touches, and acceptance criteria a test can fail. One page. Forward-looking only: existing
+   behaviour is referenced (`STATUS.md`, `contracts/`), never re-described.
+3. **Plan, then tasks** — `/speckit.plan` then `/speckit.tasks`. The task list becomes the issue list:
+   one issue per task, each carrying its acceptance line.
+4. **A milestone closes when** every task issue is closed, its acceptance criteria are demonstrated in
+   the PR that closes them, and the spec is updated to say so.
+
+`.specify/memory/current-state.md` is an agent-written half page — entry points, build/test commands,
+invariants found, known debt — that `/speckit.specify` reads instead of guessing. It is reviewed by
+exception, not line by line.
 
 ## Worktrees
 
