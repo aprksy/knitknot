@@ -67,8 +67,11 @@ dev         integration branch; feature work lands here first
 feat/<topic>  fix/<topic>  chore/<topic>  docs/<topic>   short-lived, one concern
 ```
 
-- **Never commit directly to `main`.** Open a PR from `dev` (or a `feat/*`
-  branch) into `main`.
+- **Never commit directly to `main`.** Feature PRs target `dev`; `main` moves
+  only by a promotion PR from `dev`.
+- **`dev` contains every commit on `main`.** When a commit reaches `main`
+  without `dev`, reconcile `main` back into `dev` instead of letting the two
+  drift.
 - Long-lived branch is **`dev`** — not `development`, not `develop`. One name.
 - Branch names are lower-case, hyphenated, no dots (`feat/query-time`, not
   `dev.cmd`). Dots read as file extensions to tooling.
