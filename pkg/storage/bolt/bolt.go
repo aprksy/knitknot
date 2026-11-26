@@ -208,9 +208,15 @@ func nextCounter(b *bolt.Bucket, key []byte) uint64 {
 
 // --- gob codec (matches inmem persist format) ---
 
+// version: lazy-history (ADR 0012 part A) — the node/edge value written to
+// the nodes/edges buckets never carries History; snapshots live only in the
+// history bucket. Encoding a History-free copy keeps the resident set at one
+// copy of props per element regardless of how many revisions exist.
 func encodeNode(n *types.Node) ([]byte, error) {
+	cp := *n
+	cp.History = nil
 	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(n); err != nil {
+	if err := gob.NewEncoder(&buf).Encode(&cp); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -224,9 +230,12 @@ func decodeNode(raw []byte) (*types.Node, error) {
 	return &n, nil
 }
 
+// version: lazy-history (ADR 0012 part A) — see encodeNode.
 func encodeEdge(e *types.Edge) ([]byte, error) {
+	cp := *e
+	cp.History = nil
 	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(e); err != nil {
+	if err := gob.NewEncoder(&buf).Encode(&cp); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -322,7 +331,8 @@ func (s *Storage) addNodeWithMetaTx(tx *bolt.Tx, label string, props map[string]
 		Props:      copyMap(props),
 		Subgraphs:  map[string]*types.Subgraph{},
 		CreatedRev: rev,
-		History:    []types.Snapshot{snap},
+		// version: lazy-history — no inline History; the create snapshot
+		// goes to the history bucket below (ADR 0012 part A).
 	}
 	if err := putNode(tx, node); err != nil {
 		return "", err
@@ -390,7 +400,7 @@ func (s *Storage) addEdgeWithMetaTx(tx *bolt.Tx, from, to, kind string, props ma
 		Props:      copyMap(props),
 		Subgraphs:  map[string]*types.Subgraph{},
 		CreatedRev: rev,
-		History:    []types.Snapshot{snap},
+		// version: lazy-history — no inline History (ADR 0012 part A).
 	}
 	if err := putEdge(tx, edge); err != nil {
 		return err
@@ -458,7 +468,8 @@ func (s *Storage) updateNodeWithMetaTx(tx *bolt.Tx, id string, props map[string]
 		Transaction: txID,
 	}
 	node.Props = copyMap(props)
-	node.History = append(node.History, snap)
+	// version: lazy-history — the snapshot goes to the history bucket only;
+	// the inline value carries no History (ADR 0012 part A).
 	if err := putNode(tx, node); err != nil {
 		return err
 	}
@@ -510,7 +521,7 @@ func (s *Storage) updateEdgeWithMetaTx(tx *bolt.Tx, id string, props map[string]
 		Transaction: txID,
 	}
 	edge.Props = copyMap(props)
-	edge.History = append(edge.History, snap)
+	// version: lazy-history — snapshot to the history bucket only.
 	if err := putEdge(tx, edge); err != nil {
 		return err
 	}
@@ -557,7 +568,12 @@ func (s *Storage) deleteNodeWithMetaTx(tx *bolt.Tx, id, source, transaction stri
 	now := s.clock()
 	txID := ensureTx(transaction)
 	rev := int64(nextCounter(meta, metaRevCounter))
-	n.History = append(n.History, types.Snapshot{
+	// version: lazy-history — tombstone snapshot to the history bucket only.
+	n.DeletedAt = &now
+	if err := putNode(tx, n); err != nil {
+		return err
+	}
+	if err := putSnapshot(tx, id, types.Snapshot{
 		Rev:         rev,
 		EventTime:   now,
 		LogicalTime: now,
@@ -565,9 +581,7 @@ func (s *Storage) deleteNodeWithMetaTx(tx *bolt.Tx, id, source, transaction stri
 		Source:      source,
 		Transaction: txID,
 		Deleted:     true,
-	})
-	n.DeletedAt = &now
-	if err := putNode(tx, n); err != nil {
+	}); err != nil {
 		return err
 	}
 	if err := putEvent(tx, types.Event{
@@ -599,7 +613,14 @@ func (s *Storage) deleteNodeWithMetaTx(tx *bolt.Tx, id, source, transaction stri
 				continue
 			}
 			erev := int64(nextCounter(meta, metaRevCounter))
-			e.History = append(e.History, types.Snapshot{
+			// version: edge — the tombstone snapshot lives only in the history
+			// bucket; the inline value keeps no History (ADR 0012 part A).
+			t := now
+			e.DeletedAt = &t
+			if err := putEdge(tx, e); err != nil {
+				return err
+			}
+			if err := putSnapshot(tx, e.ID, types.Snapshot{
 				Rev:         erev,
 				EventTime:   now,
 				LogicalTime: now,
@@ -607,10 +628,7 @@ func (s *Storage) deleteNodeWithMetaTx(tx *bolt.Tx, id, source, transaction stri
 				Source:      source,
 				Transaction: txID,
 				Deleted:     true,
-			})
-			t := now
-			e.DeletedAt = &t
-			if err := putEdge(tx, e); err != nil {
+			}); err != nil {
 				return err
 			}
 			if err := putEvent(tx, types.Event{
@@ -658,7 +676,12 @@ func (s *Storage) deleteEdgeWithMetaTx(tx *bolt.Tx, id, source, transaction stri
 	rev := int64(nextCounter(tx.Bucket(bkMeta), metaRevCounter))
 	now := s.clock()
 	txID := ensureTx(transaction)
-	e.History = append(e.History, types.Snapshot{
+	// version: lazy-history — tombstone snapshot to the history bucket only.
+	e.DeletedAt = &now
+	if err := putEdge(tx, e); err != nil {
+		return err
+	}
+	if err := putSnapshot(tx, id, types.Snapshot{
 		Rev:         rev,
 		EventTime:   now,
 		LogicalTime: now,
@@ -666,9 +689,7 @@ func (s *Storage) deleteEdgeWithMetaTx(tx *bolt.Tx, id, source, transaction stri
 		Source:      source,
 		Transaction: txID,
 		Deleted:     true,
-	})
-	e.DeletedAt = &now
-	if err := putEdge(tx, e); err != nil {
+	}); err != nil {
 		return err
 	}
 	return putEvent(tx, types.Event{
@@ -901,71 +922,116 @@ func (s *Storage) GetEdgesIn(subgraph string) []*types.Edge {
 	return out
 }
 
-// --- versioned reads (P2): history served from the inline values for an
-// exact inmem match; events served from the events bucket. ---
+// --- versioned reads (P2): history served from the history bucket on demand
+// (ADR 0012 part A) — the inline node/edge value carries none. Events are
+// served from the events bucket. ---
+
+// nodeHistoryBefore returns the node's snapshots with Rev <= maxRev, in
+// ascending Rev order (the history bucket is keyed elemID\x00<rev>, so a
+// prefix scan is already ordered).
+// historyBefore returns an element's snapshots with Rev <= maxRev, ascending
+// (the history bucket is keyed elemID\x00<rev>, so a prefix scan is ordered).
+// maxRev == 0 means "no upper bound".
+func historyBefore(tx *bolt.Tx, id string, maxRev int64) []types.Snapshot {
+	var out []types.Snapshot
+	p := prefixKey(id)
+	c := tx.Bucket(bkHistory).Cursor()
+	for k, v := c.Seek(historyKey(id, 0)); k != nil && bytes.HasPrefix(k, p); k, v = c.Next() {
+		rev := revFromKey(k[len(p):])
+		if maxRev > 0 && rev > maxRev {
+			break
+		}
+		var snap types.Snapshot
+		if err := gob.NewDecoder(bytes.NewReader(v)).Decode(&snap); err != nil {
+			continue
+		}
+		out = append(out, snap)
+	}
+	return out
+}
 
 func (s *Storage) GetNodeAt(id string, t time.Time) (*types.Node, bool) {
 	if t.IsZero() {
 		return nil, false
 	}
-	n, ok := s.GetNode(id)
-	if !ok {
-		return nil, false
-	}
-	best := -1
-	for i, snap := range n.History {
-		if !snap.EventTime.After(t) {
-			best = i
+	var out *types.Node
+	_ = s.view(func(tx *bolt.Tx) error {
+		n, ok := getNode(tx, id)
+		if !ok {
+			return nil
 		}
-	}
-	if best < 0 || n.History[best].Deleted {
-		return nil, false
-	}
-	cp := *n
-	cp.Props = copyMap(n.History[best].Props)
-	cp.DeletedAt = nil
-	cp.History = append([]types.Snapshot(nil), n.History[:best+1]...)
-	return &cp, true
+		snaps := historyBefore(tx, id, 0)
+		best := -1
+		for i, snap := range snaps {
+			if !snap.EventTime.After(t) {
+				best = i
+			}
+		}
+		if best < 0 || snaps[best].Deleted {
+			return nil
+		}
+		cp := *n
+		cp.Props = copyMap(snaps[best].Props)
+		cp.DeletedAt = nil
+		cp.History = append([]types.Snapshot(nil), snaps[:best+1]...)
+		out = &cp
+		return nil
+	})
+	return out, out != nil
 }
 
 func (s *Storage) GetNodeHistory(id string) []types.Snapshot {
-	n, ok := s.GetNode(id)
-	if !ok {
+	var out []types.Snapshot
+	_ = s.view(func(tx *bolt.Tx) error {
+		if _, ok := getNode(tx, id); !ok {
+			return nil
+		}
+		out = historyBefore(tx, id, 0)
 		return nil
-	}
-	return append([]types.Snapshot(nil), n.History...)
+	})
+	return out
 }
 
 func (s *Storage) GetEdgeAt(id string, t time.Time) (*types.Edge, bool) {
 	if t.IsZero() {
 		return nil, false
 	}
-	e, ok := s.GetEdge(id)
-	if !ok {
-		return nil, false
-	}
-	best := -1
-	for i, snap := range e.History {
-		if !snap.EventTime.After(t) {
-			best = i
+	var out *types.Edge
+	_ = s.view(func(tx *bolt.Tx) error {
+		e, ok := getEdge(tx, id)
+		if !ok {
+			return nil
 		}
-	}
-	if best < 0 || e.History[best].Deleted {
-		return nil, false
-	}
-	cp := *e
-	cp.Props = copyMap(e.History[best].Props)
-	cp.DeletedAt = nil
-	cp.History = append([]types.Snapshot(nil), e.History[:best+1]...)
-	return &cp, true
+		snaps := historyBefore(tx, id, 0)
+		best := -1
+		for i, snap := range snaps {
+			if !snap.EventTime.After(t) {
+				best = i
+			}
+		}
+		if best < 0 || snaps[best].Deleted {
+			return nil
+		}
+		cp := *e
+		cp.Props = copyMap(snaps[best].Props)
+		cp.DeletedAt = nil
+		cp.History = append([]types.Snapshot(nil), snaps[:best+1]...)
+		out = &cp
+		return nil
+	})
+	return out, out != nil
 }
 
 func (s *Storage) GetEdgeHistory(id string) []types.Snapshot {
-	e, ok := s.GetEdge(id)
-	if !ok {
+	var out []types.Snapshot
+	_ = s.view(func(tx *bolt.Tx) error {
+		if _, ok := getEdge(tx, id); !ok {
+			return nil
+		}
+		out = historyBefore(tx, id, 0)
 		return nil
-	}
-	return append([]types.Snapshot(nil), e.History...)
+	})
+	return out
 }
 
 func (s *Storage) GetEvents(fromRev, toRev int64) []types.Event {

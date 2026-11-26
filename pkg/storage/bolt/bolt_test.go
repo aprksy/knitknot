@@ -75,14 +75,22 @@ func TestBoltCRUD(t *testing.T) {
 	if err := s.UpdateNode(a, map[string]any{"name": "a2"}); err != nil {
 		t.Fatal(err)
 	}
-	if n, _ := s.GetNode(a); n.Props["name"] != "a2" || len(n.History) != 2 {
+	// ADR 0012 part A: the live value carries no inline History; history is
+	// served on demand from the history bucket.
+	if n, _ := s.GetNode(a); n.Props["name"] != "a2" || len(n.History) != 0 {
 		t.Fatalf("UpdateNode: %+v", n)
+	}
+	if h := s.GetNodeHistory(a); len(h) != 2 || h[1].Props["name"] != "a2" {
+		t.Fatalf("UpdateNode history: %+v", h)
 	}
 	if err := s.UpdateEdge(edgeID, map[string]any{"w": 2}); err != nil {
 		t.Fatal(err)
 	}
-	if e, _ := s.GetEdge(edgeID); e.Props["w"] != 2 || len(e.History) != 2 {
+	if e, _ := s.GetEdge(edgeID); e.Props["w"] != 2 || len(e.History) != 0 {
 		t.Fatalf("UpdateEdge: %+v", e)
+	}
+	if eh := s.GetEdgeHistory(edgeID); len(eh) != 2 || eh[1].Props["w"] != 2 {
+		t.Fatalf("UpdateEdge history: %+v", eh)
 	}
 	if err := s.UpdateNode("missing", nil); err == nil {
 		t.Fatal("UpdateNode missing should fail")
@@ -401,8 +409,11 @@ func TestBoltWithMeta(t *testing.T) {
 	if len(h) != 1 || h[0].Source != "feed1" || h[0].Transaction != "tx-1" {
 		t.Fatalf("node snapshot meta: %+v", h)
 	}
-	if n, _ := s.GetNode(a); n.History[len(n.History)-1].Source != "feed1" {
-		t.Fatal("GetNode should return latest source via history")
+	if n, _ := s.GetNode(a); len(n.History) != 0 {
+		t.Fatalf("GetNode should carry no inline history: %+v", n)
+	}
+	if hh := s.GetNodeHistory(a); len(hh) != 1 || hh[0].Source != "feed1" {
+		t.Fatalf("latest source via history: %+v", hh)
 	}
 	// events carry them too; one tx groups create+create
 	if got := s.GetEventsByTransaction("tx-1"); len(got) != 3 {
