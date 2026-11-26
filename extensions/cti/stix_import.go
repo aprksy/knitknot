@@ -78,18 +78,23 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 		return fmt.Errorf("cti: bundle has no objects") // ext: cti-import
 	} // ext: cti-import
 
+	// One stix_id -> graph_id index for the whole import. Without it every
+	// node and edge upsert scans all nodes, which is O(n*m) and dominated
+	// the runtime at bundle scale.
+	idx := newStixIndex(s) // ext: cti-import
+
 	// Still pass 1: every relationship endpoint must resolve against the
 	// staged set or pre-existing storage before any mutation happens.
-	if err := im.checkEndpoints(s, staged, rels); err != nil { // ext: cti-import
+	if err := im.checkEndpoints(s, idx, staged, rels); err != nil { // ext: cti-import
 		return err // ext: cti-import
 	} // ext: cti-import
 
 	// Pass 2: upsert nodes, then relationships, both read back as streams.
 	pass2 := func() error { // ext: cti-import
-		if err := im.upsertNodes(ctx, ic, s, nodes); err != nil { // ext: cti-import
+		if err := im.upsertNodes(ctx, ic, s, idx, nodes); err != nil { // ext: cti-import
 			return err // ext: cti-import
 		} // ext: cti-import
-		return im.upsertRels(ctx, ic, s, rels) // ext: cti-import
+		return im.upsertRels(ctx, ic, s, idx, rels) // ext: cti-import
 	} // ext: cti-import
 	if bs, ok := s.(batchStore); ok { // ext: cti-import
 		if err := bs.Batch(pass2); err != nil { // ext: cti-import
@@ -292,7 +297,7 @@ func writeStaged(w *bufio.Writer, v any) error { // ext: cti-import
 // checkEndpoints re-reads the relationship staging file and verifies every
 // endpoint resolves against the staged set or storage. It runs before any
 // mutation, so a dangling reference leaves the graph untouched.
-func (im *STIXImporter) checkEndpoints(s storage.StorageEngine, staged map[string]struct{}, rels *os.File) error { // ext: cti-import
+func (im *STIXImporter) checkEndpoints(s storage.StorageEngine, idx *stixIndex, staged map[string]struct{}, rels *os.File) error { // ext: cti-import
 	if _, err := rels.Seek(0, io.SeekStart); err != nil { // ext: cti-import
 		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
 	} // ext: cti-import
@@ -306,7 +311,7 @@ func (im *STIXImporter) checkEndpoints(s storage.StorageEngine, staged map[strin
 			if _, ok := staged[ref]; ok { // ext: cti-import
 				continue // ext: cti-import
 			} // ext: cti-import
-			if findGraphID(s, ref) == "" { // ext: cti-import
+			if idx.lookup(s, ref) == "" { // ext: cti-import
 				return fmt.Errorf("cti: relationship %q references unknown object %q", rel.StixID, ref) // ext: cti-import
 			} // ext: cti-import
 		} // ext: cti-import
@@ -321,7 +326,7 @@ func (im *STIXImporter) checkEndpoints(s storage.StorageEngine, staged map[strin
 } // ext: cti-import
 
 // upsertNodes streams the node staging file, upserting each node.
-func (im *STIXImporter) upsertNodes(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, nodes *os.File) error { // ext: cti-import
+func (im *STIXImporter) upsertNodes(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, idx *stixIndex, nodes *os.File) error { // ext: cti-import
 	if _, err := nodes.Seek(0, io.SeekStart); err != nil { // ext: cti-import
 		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
 	} // ext: cti-import
@@ -334,7 +339,7 @@ func (im *STIXImporter) upsertNodes(ctx context.Context, ic extension.ImportCont
 		if err := ctx.Err(); err != nil { // ext: cti-import
 			return err // ext: cti-import
 		} // ext: cti-import
-		if err := im.upsertNode(ctx, ic, s, n); err != nil { // ext: cti-import
+		if err := im.upsertNode(ctx, ic, s, idx, n); err != nil { // ext: cti-import
 			return err // ext: cti-import
 		} // ext: cti-import
 	} // ext: cti-import
@@ -345,7 +350,7 @@ func (im *STIXImporter) upsertNodes(ctx context.Context, ic extension.ImportCont
 } // ext: cti-import
 
 // upsertRels streams the relationship staging file and upserts each edge.
-func (im *STIXImporter) upsertRels(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, rels *os.File) error { // ext: cti-import
+func (im *STIXImporter) upsertRels(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, idx *stixIndex, rels *os.File) error { // ext: cti-import
 	if _, err := rels.Seek(0, io.SeekStart); err != nil { // ext: cti-import
 		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
 	} // ext: cti-import
@@ -359,8 +364,8 @@ func (im *STIXImporter) upsertRels(ctx context.Context, ic extension.ImportConte
 		if err := ctx.Err(); err != nil { // ext: cti-import
 			return err // ext: cti-import
 		} // ext: cti-import
-		stale, err := im.upsertRel(ctx, ic, s, rel) // ext: cti-import
-		if err != nil {                             // ext: cti-import
+		stale, err := im.upsertRel(ctx, ic, s, idx, rel) // ext: cti-import
+		if err != nil {                                  // ext: cti-import
 			return err // ext: cti-import
 		} // ext: cti-import
 		if stale { // ext: cti-import
@@ -385,10 +390,10 @@ func newScanner(r io.Reader) *bufio.Scanner { // ext: cti-import
 } // ext: cti-import
 
 // upsertNode upserts one staged node, merging props on an existing stix_id.
-func (im *STIXImporter) upsertNode(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, n stagedNode) error { // ext: cti-import
-	_ = ctx                              // ext: cti-import
-	existing := findGraphID(s, n.StixID) // ext: cti-import
-	if existing != "" {                  // ext: cti-import
+func (im *STIXImporter) upsertNode(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, idx *stixIndex, n stagedNode) error { // ext: cti-import
+	_ = ctx                             // ext: cti-import
+	existing := idx.lookup(s, n.StixID) // ext: cti-import
+	if existing != "" {                 // ext: cti-import
 		if node, ok := s.GetNode(existing); ok { // ext: cti-import
 			if isStale(node.Props, n.Props) { // ext: cti-import
 				return nil // ext: cti-import
@@ -399,19 +404,21 @@ func (im *STIXImporter) upsertNode(ctx context.Context, ic extension.ImportConte
 			return nil // ext: cti-import
 		} // ext: cti-import
 	} // ext: cti-import
-	if _, err := addNodeSrc(s, n.Label, n.Props, ic.Source, ic.Transaction); err != nil { // ext: cti-import
+	gid, err := addNodeSrc(s, n.Label, n.Props, ic.Source, ic.Transaction) // ext: cti-import
+	if err != nil {                                                        // ext: cti-import
 		return fmt.Errorf("cti: add node %q: %w", n.StixID, err) // ext: cti-import
 	} // ext: cti-import
-	return nil // ext: cti-import
+	idx.remember(n.StixID, gid) // ext: cti-import
+	return nil                  // ext: cti-import
 } // ext: cti-import
 
 // upsertRel upserts one staged relationship. It reports whether the incoming
 // object was stale (and therefore skipped).
-func (im *STIXImporter) upsertRel(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, rel stagedRel) (bool, error) { // ext: cti-import
-	_ = ctx                                // ext: cti-import
-	from := resolveGraphID(s, rel.FromRef) // ext: cti-import
-	to := resolveGraphID(s, rel.ToRef)     // ext: cti-import
-	if from == "" || to == "" {            // ext: cti-import
+func (im *STIXImporter) upsertRel(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, idx *stixIndex, rel stagedRel) (bool, error) { // ext: cti-import
+	_ = ctx                            // ext: cti-import
+	from := idx.lookup(s, rel.FromRef) // ext: cti-import
+	to := idx.lookup(s, rel.ToRef)     // ext: cti-import
+	if from == "" || to == "" {        // ext: cti-import
 		return false, fmt.Errorf("cti: relationship %q has unresolvable endpoint", rel.StixID) // ext: cti-import
 	} // ext: cti-import
 	if found := findEdge(s, from, to, rel.Kind); found != nil { // ext: cti-import
@@ -429,10 +436,43 @@ func (im *STIXImporter) upsertRel(ctx context.Context, ic extension.ImportContex
 	return false, nil // ext: cti-import
 } // ext: cti-import
 
-// resolveGraphID maps a staged STIX id to its graph id, falling back to a
-// storage scan for objects that pre-date this import.
-func resolveGraphID(s storage.StorageEngine, stixID string) string { // ext: cti-import
-	return findGraphID(s, stixID) // ext: cti-import
+// stixIndex maps STIX ids to graph ids for the duration of one import.
+// Seeding costs a single pass over pre-existing nodes; after that every
+// lookup is a map hit instead of a full node scan.
+type stixIndex struct { // ext: cti-import
+	ids map[string]string // ext: cti-import
+} // ext: cti-import
+
+// newStixIndex seeds the index from nodes already in storage.
+func newStixIndex(s storage.StorageEngine) *stixIndex { // ext: cti-import
+	idx := &stixIndex{ids: make(map[string]string)} // ext: cti-import
+	for _, n := range s.GetAllNodes() {             // ext: cti-import
+		if sid, _ := n.Props[StixID].(string); sid != "" { // ext: cti-import
+			idx.ids[sid] = n.ID // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	return idx // ext: cti-import
+} // ext: cti-import
+
+// lookup resolves a STIX id, falling back to a storage scan the first time
+// an id is missed (covers backends whose writes are not visible to
+// GetAllNodes mid-transaction).
+func (i *stixIndex) lookup(s storage.StorageEngine, stixID string) string { // ext: cti-import
+	if id, ok := i.ids[stixID]; ok { // ext: cti-import
+		return id // ext: cti-import
+	} // ext: cti-import
+	id := findGraphID(s, stixID) // ext: cti-import
+	if id != "" {                // ext: cti-import
+		i.ids[stixID] = id // ext: cti-import
+	} // ext: cti-import
+	return id // ext: cti-import
+} // ext: cti-import
+
+// remember records a node written during this import.
+func (i *stixIndex) remember(stixID, graphID string) { // ext: cti-import
+	if stixID != "" && graphID != "" { // ext: cti-import
+		i.ids[stixID] = graphID // ext: cti-import
+	} // ext: cti-import
 } // ext: cti-import
 
 // findGraphID scans all nodes for stixID and returns its graph ID, or "". // ext: cti-import
