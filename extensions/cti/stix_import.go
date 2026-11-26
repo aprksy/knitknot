@@ -78,10 +78,14 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 		return fmt.Errorf("cti: bundle has no objects") // ext: cti-import
 	} // ext: cti-import
 
-	// One stix_id -> graph_id index for the whole import. Without it every
-	// node and edge upsert scans all nodes, which is O(n*m) and dominated
-	// the runtime at bundle scale.
-	idx := newStixIndex(s) // ext: cti-import
+	// One stix_id -> graph_id index for the whole import. Seeded from the
+	// staged node file (every id this bundle writes) plus storage, so no
+	// upsert has to scan. Without it every node and edge upsert ran
+	// GetAllNodes: ~1e9 gob decodes at bundle scale.
+	idx := newStixIndex(s)                        // ext: cti-import
+	if err := idx.seedStaged(nodes); err != nil { // ext: cti-import
+		return err // ext: cti-import
+	} // ext: cti-import
 
 	// Still pass 1: every relationship endpoint must resolve against the
 	// staged set or pre-existing storage before any mutation happens.
@@ -391,9 +395,12 @@ func newScanner(r io.Reader) *bufio.Scanner { // ext: cti-import
 
 // upsertNode upserts one staged node, merging props on an existing stix_id.
 func (im *STIXImporter) upsertNode(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, idx *stixIndex, n stagedNode) error { // ext: cti-import
-	_ = ctx                             // ext: cti-import
-	existing := idx.lookup(s, n.StixID) // ext: cti-import
-	if existing != "" {                 // ext: cti-import
+	_ = ctx                                  // ext: cti-import
+	existing, known := idx.resolve(n.StixID) // ext: cti-import
+	if !known {                              // ext: cti-import
+		existing = findGraphID(s, n.StixID) // ext: cti-import
+	} // ext: cti-import
+	if existing != "" { // ext: cti-import
 		if node, ok := s.GetNode(existing); ok { // ext: cti-import
 			if isStale(node.Props, n.Props) { // ext: cti-import
 				return nil // ext: cti-import
@@ -454,11 +461,18 @@ func newStixIndex(s storage.StorageEngine) *stixIndex { // ext: cti-import
 	return idx // ext: cti-import
 } // ext: cti-import
 
-// lookup resolves a STIX id, falling back to a storage scan the first time
-// an id is missed (covers backends whose writes are not visible to
-// GetAllNodes mid-transaction).
+// resolve reports the graph id for a STIX id and whether the id is known at
+// all (staged or stored). It never scans, so it is safe on the hot path.
+// A staged-but-not-yet-written id resolves to "" with known=true.
+func (i *stixIndex) resolve(stixID string) (string, bool) { // ext: cti-import
+	id, ok := i.ids[stixID] // ext: cti-import
+	return id, ok           // ext: cti-import
+} // ext: cti-import
+
+// lookup resolves a STIX id, falling back to a storage scan for an id that
+// was never staged or stored. Only endpoint validation uses it.
 func (i *stixIndex) lookup(s storage.StorageEngine, stixID string) string { // ext: cti-import
-	if id, ok := i.ids[stixID]; ok { // ext: cti-import
+	if id, ok := i.ids[stixID]; ok && id != "" { // ext: cti-import
 		return id // ext: cti-import
 	} // ext: cti-import
 	id := findGraphID(s, stixID) // ext: cti-import
@@ -466,6 +480,36 @@ func (i *stixIndex) lookup(s storage.StorageEngine, stixID string) string { // e
 		i.ids[stixID] = id // ext: cti-import
 	} // ext: cti-import
 	return id // ext: cti-import
+} // ext: cti-import
+
+// seedStaged pre-registers every stix_id in the staged node file, so
+// resolve finds a hit for every object this import will write. Ids already
+// known from storage keep their graph id; the rest start empty and are
+// filled by remember as upsertNode writes them.
+func (i *stixIndex) seedStaged(nodes *os.File) error { // ext: cti-import
+	if _, err := nodes.Seek(0, io.SeekStart); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
+	} // ext: cti-import
+	sc := newScanner(nodes) // ext: cti-import
+	for sc.Scan() {         // ext: cti-import
+		var n stagedNode                                       // ext: cti-import
+		if err := json.Unmarshal(sc.Bytes(), &n); err != nil { // ext: cti-import
+			return fmt.Errorf("cti: read staged node: %w", err) // ext: cti-import
+		} // ext: cti-import
+		if n.StixID == "" { // ext: cti-import
+			continue // ext: cti-import
+		} // ext: cti-import
+		if _, known := i.ids[n.StixID]; !known { // ext: cti-import
+			i.ids[n.StixID] = "" // ext: cti-import — pending // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	if err := sc.Err(); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: read staging: %w", err) // ext: cti-import
+	} // ext: cti-import
+	if _, err := nodes.Seek(0, io.SeekStart); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
+	} // ext: cti-import
+	return nil // ext: cti-import
 } // ext: cti-import
 
 // remember records a node written during this import.
