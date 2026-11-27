@@ -16,9 +16,9 @@ jobs:
     runs-on: [self-hosted, linux, knitknot]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
+      # setup-go downloads a toolchain (1.25.1 here) and caches it; the
+      # sxi-work runner already has Go 1.27.4 on PATH, so use that and
+      # skip the ~1.7 GB cache upload this job was spending 6 MB/s on.
       - run: go build ./...
       - run: go vet ./...
       - run: test -z "$(gofmt -l .)"
