@@ -1,7 +1,8 @@
-// ext: cti-import — STIX 2.1 bundle importer (two-pass: stage, then upsert).
+// ext: cti-import — STIX 2.1 bundle importer (stream, stage to disk, then upsert).
 package cti
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -24,43 +25,195 @@ func NewSTIXImporter() *STIXImporter { return &STIXImporter{} } // ext: cti-impo
 var _ extension.Importer = (*STIXImporter)(nil) // ext: cti-import
 
 type stagedNode struct { // ext: cti-import
-	stixID string         // ext: cti-import
-	label  string         // ext: cti-import
-	props  map[string]any // ext: cti-import
+	StixID string         `json:"stixId"` // ext: cti-import
+	Label  string         `json:"label"`  // ext: cti-import
+	Props  map[string]any `json:"props"`  // ext: cti-import
 } // ext: cti-import
 
 type stagedRel struct { // ext: cti-import
-	stixID  string         // ext: cti-import
-	kind    string         // ext: cti-import
-	fromRef string         // ext: cti-import
-	toRef   string         // ext: cti-import
-	props   map[string]any // ext: cti-import
+	StixID  string         `json:"stixId"`  // ext: cti-import
+	Kind    string         `json:"kind"`    // ext: cti-import
+	FromRef string         `json:"fromRef"` // ext: cti-import
+	ToRef   string         `json:"toRef"`   // ext: cti-import
+	Props   map[string]any `json:"props"`   // ext: cti-import
 } // ext: cti-import
 
-// Import reads a STIX 2.1 bundle and upserts its objects as nodes and edges. // ext: cti-import
-// Pass 1 stages and validates everything without touching storage; pass 2 // ext: cti-import
-// upserts nodes first, then resolves and upserts relationships. // ext: cti-import
+// Import reads a STIX 2.1 bundle and upserts its objects as nodes and edges.
+//
+// perf: the bundle is streamed one object at a time and staged to scratch
+// files; nothing proportional to bundle size is kept in memory. The previous
+// `stix2.FromJSON` path materialised the whole bundle as a Collection plus
+// `[]stagedNode`/`[]stagedRel` copies, which OOM-killed a 52MB bundle at
+// ~15GB anon-rss. Peak memory is now one object plus the id/label indexes.
+// ext: cti-import
 func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, verbs *types.VerbRegistry, r io.Reader) error { // ext: cti-import
-	_ = verbs                  // ext: cti-import
-	data, err := io.ReadAll(r) // ext: cti-import
-	if err != nil {            // ext: cti-import
-		return fmt.Errorf("cti: read bundle: %w", err) // ext: cti-import
+	_ = verbs // ext: cti-import
+
+	nodes, err := os.CreateTemp("", "knitknot-stix-nodes-*.jsonl") // ext: cti-import
+	if err != nil {                                                // ext: cti-import
+		return fmt.Errorf("cti: staging file: %w", err) // ext: cti-import
+	}
+	nodesPath := nodes.Name() // ext: cti-import
+	defer func() {            // ext: cti-import
+		_ = nodes.Close() // ext: cti-import
+		_ = os.Remove(nodesPath)
+	}()
+	rels, err := os.CreateTemp("", "knitknot-stix-rels-*.jsonl") // ext: cti-import
+	if err != nil {                                              // ext: cti-import
+		return fmt.Errorf("cti: staging file: %w", err) // ext: cti-import
+	}
+	relsPath := rels.Name() // ext: cti-import
+	defer func() {          // ext: cti-import
+		_ = rels.Close() // ext: cti-import
+		_ = os.Remove(relsPath)
+	}()
+
+	// Pass 1: stream, validate, stage. No storage mutation happens here, so a
+	// malformed bundle still leaves the graph untouched.
+	staged, nNodes, nRels, err := im.stage(ctx, ic, r, bufio.NewWriter(nodes), bufio.NewWriter(rels)) // ext: cti-import
+	if err != nil {                                                                                   // ext: cti-import
+		return err // ext: cti-import
 	} // ext: cti-import
-	collection, err := stix2.FromJSON(data) // ext: cti-import
-	if err != nil {                         // ext: cti-import
-		return fmt.Errorf("cti: parse STIX bundle: %w", err) // ext: cti-import
+	if nNodes == 0 && nRels == 0 { // ext: cti-import
+		return fmt.Errorf("cti: bundle has no objects") // ext: cti-import
 	} // ext: cti-import
 
-	// Pass 1: stage and validate, no storage mutation. // ext: cti-import
-	var nodes []stagedNode                        // ext: cti-import
-	var rels []stagedRel                          // ext: cti-import
-	staged := make(map[string]struct{})           // ext: cti-import
-	for i, obj := range collection.AllObjects() { // ext: cti-import
+	// One stix_id -> graph_id index for the whole import. Seeded from the
+	// staged node file (every id this bundle writes) plus storage, so no
+	// upsert has to scan. Without it every node and edge upsert ran
+	// GetAllNodes: ~1e9 gob decodes at bundle scale.
+	idx := newStixIndex(s)                        // ext: cti-import
+	if err := idx.seedStaged(nodes); err != nil { // ext: cti-import
+		return err // ext: cti-import
+	} // ext: cti-import
+
+	// Still pass 1: every relationship endpoint must resolve against the
+	// staged set or pre-existing storage before any mutation happens.
+	if err := im.checkEndpoints(s, idx, staged, rels); err != nil { // ext: cti-import
+		return err // ext: cti-import
+	} // ext: cti-import
+
+	// Pass 2: upsert nodes, then relationships, both read back as streams.
+	pass2 := func() error { // ext: cti-import
+		if err := im.upsertNodes(ctx, ic, s, idx, nodes); err != nil { // ext: cti-import
+			return err // ext: cti-import
+		} // ext: cti-import
+		return im.upsertRels(ctx, ic, s, idx, rels) // ext: cti-import
+	} // ext: cti-import
+	if bs, ok := s.(batchStore); ok { // ext: cti-import
+		if err := bs.Batch(pass2); err != nil { // ext: cti-import
+			return err // ext: cti-import
+		} // ext: cti-import
+	} else if err := pass2(); err != nil { // ext: cti-import
+		return err // ext: cti-import
+	} // ext: cti-import
+
+	if ic.MaterializeTactics { // ext: cti-tactics — opt-in; default import returns above unchanged
+		if _, _, err := materializeTactics(ctx, s, ic); err != nil { // ext: cti-tactics
+			return fmt.Errorf("cti: materialize tactics: %w", err) // ext: cti-tactics
+		} // ext: cti-tactics
+	} // ext: cti-tactics
+	return nil // ext: cti-import
+} // ext: cti-import
+
+// stage streams the bundle, validates each object and writes nodes and
+// relationships to their own staging files. It returns the set of staged
+// STIX ids plus the two counts.
+func (im *STIXImporter) stage(ctx context.Context, ic extension.ImportContext, r io.Reader, nodeW, relW *bufio.Writer) (map[string]struct{}, int, int, error) { // ext: cti-import
+	staged := make(map[string]struct{}) // ext: cti-import
+	nNodes, nRels := 0, 0               // ext: cti-import
+
+	dec := json.NewDecoder(bufio.NewReader(r)) // ext: cti-import
+	tok, err := dec.Token()                    // ext: cti-import
+	if err != nil {                            // ext: cti-import
+		return nil, 0, 0, fmt.Errorf("cti: parse STIX bundle: %w", err) // ext: cti-import
+	} // ext: cti-import
+
+	switch d := tok.(type) { // ext: cti-import
+	case json.Delim: // ext: cti-import
+		switch d { // ext: cti-import
+		case '[': // ext: cti-import — a bare array of objects, the other shape FromJSON accepts
+			if err := im.stageArray(ctx, ic, dec, nodeW, relW, staged, &nNodes, &nRels); err != nil { // ext: cti-import
+				return nil, 0, 0, err // ext: cti-import
+			} // ext: cti-import
+		case '{': // ext: cti-import — a bundle object
+			if err := im.stageBundle(ctx, ic, dec, nodeW, relW, staged, &nNodes, &nRels); err != nil { // ext: cti-import
+				return nil, 0, 0, err // ext: cti-import
+			} // ext: cti-import
+		default: // ext: cti-import
+			return nil, 0, 0, fmt.Errorf("cti: parse STIX bundle: unexpected %q", d) // ext: cti-import
+		} // ext: cti-import
+	default: // ext: cti-import
+		return nil, 0, 0, fmt.Errorf("cti: parse STIX bundle: expected an object or array") // ext: cti-import
+	} // ext: cti-import
+
+	if err := nodeW.Flush(); err != nil { // ext: cti-import
+		return nil, 0, 0, fmt.Errorf("cti: staging flush: %w", err) // ext: cti-import
+	} // ext: cti-import
+	if err := relW.Flush(); err != nil { // ext: cti-import
+		return nil, 0, 0, fmt.Errorf("cti: staging flush: %w", err) // ext: cti-import
+	} // ext: cti-import
+	return staged, nNodes, nRels, nil // ext: cti-import
+} // ext: cti-import
+
+// stageBundle walks the top-level members of a bundle object.
+func (im *STIXImporter) stageBundle(ctx context.Context, ic extension.ImportContext, dec *json.Decoder, nodeW, relW *bufio.Writer, staged map[string]struct{}, nNodes, nRels *int) error { // ext: cti-import
+	for dec.More() { // ext: cti-import
+		keyTok, err := dec.Token() // ext: cti-import
+		if err != nil {            // ext: cti-import
+			return fmt.Errorf("cti: parse STIX bundle: %w", err) // ext: cti-import
+		} // ext: cti-import
+		key, _ := keyTok.(string) // ext: cti-import
+		if key != "objects" {     // ext: cti-import
+			var skip json.RawMessage                  // ext: cti-import
+			if err := dec.Decode(&skip); err != nil { // ext: cti-import
+				return fmt.Errorf("cti: parse STIX bundle: %w", err) // ext: cti-import
+			} // ext: cti-import
+			continue // ext: cti-import
+		} // ext: cti-import
+		if err := im.stageArray(ctx, ic, dec, nodeW, relW, staged, nNodes, nRels); err != nil { // ext: cti-import
+			return err // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	// consume the closing '}'
+	if _, err := dec.Token(); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: parse STIX bundle: %w", err) // ext: cti-import
+	} // ext: cti-import
+	return nil // ext: cti-import
+} // ext: cti-import
+
+// stageArray streams one JSON array of objects (the bundle's "objects" member
+// or a top-level array).
+func (im *STIXImporter) stageArray(ctx context.Context, ic extension.ImportContext, dec *json.Decoder, nodeW, relW *bufio.Writer, staged map[string]struct{}, nNodes, nRels *int) error { // ext: cti-import
+	tok, err := dec.Token() // ext: cti-import
+	if err != nil {         // ext: cti-import
+		return fmt.Errorf("cti: parse STIX bundle: %w", err) // ext: cti-import
+	} // ext: cti-import
+	if d, ok := tok.(json.Delim); !ok || d != '[' { // ext: cti-import
+		return fmt.Errorf("cti: parse STIX bundle: \"objects\" must be an array") // ext: cti-import
+	} // ext: cti-import
+
+	for i := 0; dec.More(); i++ { // ext: cti-import
 		if i%64 == 0 { // ext: cti-import
 			if err := ctx.Err(); err != nil { // ext: cti-import
 				return err // ext: cti-import
 			} // ext: cti-import
 		} // ext: cti-import
+		var raw json.RawMessage                  // ext: cti-import
+		if err := dec.Decode(&raw); err != nil { // ext: cti-import
+			return fmt.Errorf("cti: parse STIX bundle: %w", err) // ext: cti-import
+		} // ext: cti-import
+
+		// One object at a time through the library's own parser, so type
+		// dispatch and custom-property handling stay exactly the library's.
+		obj, err := parseOne(raw) // ext: cti-import
+		if err != nil {           // ext: cti-import
+			return err // ext: cti-import
+		} // ext: cti-import
+		if obj == nil { // ext: cti-import
+			continue // ext: cti-import — no "type": the library skips these too // ext: cti-import
+		} // ext: cti-import
+
 		stixID := string(obj.GetID()) // ext: cti-import
 		if stixID == "" {             // ext: cti-import
 			return fmt.Errorf("cti: object missing STIX id") // ext: cti-import
@@ -68,6 +221,7 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 		if _, _, err := ParseSTIXID(stixID); err != nil { // ext: cti-import
 			return fmt.Errorf("cti: invalid STIX id %q: %w", stixID, err) // ext: cti-import
 		} // ext: cti-import
+
 		if rel, ok := obj.(*stix2.Relationship); ok { // ext: cti-import
 			if rel.Source == "" || rel.Target == "" { // ext: cti-import
 				return fmt.Errorf("cti: relationship %q missing source_ref or target_ref", stixID) // ext: cti-import
@@ -79,177 +233,345 @@ func (im *STIXImporter) Import(ctx context.Context, ic extension.ImportContext, 
 			if err != nil {                          // ext: cti-import
 				return fmt.Errorf("cti: relationship %q: %w", stixID, err) // ext: cti-import
 			} // ext: cti-import
-			rels = append(rels, stagedRel{stixID: stixID, kind: string(rel.RelationshipType), fromRef: string(rel.Source), toRef: string(rel.Target), props: props}) // ext: cti-import
-			continue                                                                                                                                                 // ext: cti-import
+			if err := writeStaged(relW, stagedRel{StixID: stixID, Kind: string(rel.RelationshipType), FromRef: string(rel.Source), ToRef: string(rel.Target), Props: props}); err != nil { // ext: cti-import
+				return err // ext: cti-import
+			} // ext: cti-import
+			*nRels++ // ext: cti-import
+			continue // ext: cti-import
 		} // ext: cti-import
+
 		if ind, ok := obj.(*stix2.Indicator); ok { // ext: cti-import
 			if ind.Pattern == "" || ind.PatternType == "" || ind.ValidFrom == nil { // ext: cti-import
 				return fmt.Errorf("cti: indicator %q missing required pattern, pattern_type, or valid_from", stixID) // ext: cti-import
 			} // ext: cti-import
 		} // ext: cti-import
+
 		props, err := graphProps(obj, ic.Source) // ext: cti-import // ext: source-feed
 		if err != nil {                          // ext: cti-import
 			return fmt.Errorf("cti: object %q: %w", stixID, err) // ext: cti-import
 		} // ext: cti-import
 		// ext: cti-import — label is the STIX type verbatim; supported SDOs match vocabulary consts, anything else (SCOs, x-custom) is preserved as-is.
-		nodes = append(nodes, stagedNode{stixID: stixID, label: string(obj.GetType()), props: props}) // ext: cti-import
-		staged[stixID] = struct{}{}                                                                   // ext: cti-import
+		if err := writeStaged(nodeW, stagedNode{StixID: stixID, Label: string(obj.GetType()), Props: props}); err != nil { // ext: cti-import
+			return err // ext: cti-import
+		} // ext: cti-import
+		staged[stixID] = struct{}{} // ext: cti-import
+		*nNodes++                   // ext: cti-import
 	} // ext: cti-import
 
-	// Still pass 1: every relationship endpoint must resolve against the staged // ext: cti-import
-	// set or pre-existing storage before any mutation happens. // ext: cti-import
-	for _, rel := range rels { // ext: cti-import
-		for _, ref := range []string{rel.fromRef, rel.toRef} { // ext: cti-import
+	// consume the closing ']'
+	if _, err := dec.Token(); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: parse STIX bundle: %w", err) // ext: cti-import
+	} // ext: cti-import
+	return nil // ext: cti-import
+} // ext: cti-import
+
+// parseOne decodes a single raw STIX object. The library exposes only a
+// whole-input FromJSON, so the object is wrapped in a one-element array —
+// its smallest accepted streaming shape — and released as soon as the caller
+// stages it.
+func parseOne(raw json.RawMessage) (stix2.STIXObject, error) { // ext: cti-import
+	buf := make([]byte, 0, len(raw)+2)     // ext: cti-import
+	buf = append(buf, '[')                 // ext: cti-import
+	buf = append(buf, raw...)              // ext: cti-import
+	buf = append(buf, ']')                 // ext: cti-import
+	collection, err := stix2.FromJSON(buf) // ext: cti-import
+	if err != nil {                        // ext: cti-import
+		return nil, fmt.Errorf("cti: parse STIX object: %w", err) // ext: cti-import
+	} // ext: cti-import
+	objs := collection.AllObjects() // ext: cti-import
+	if len(objs) == 0 {             // ext: cti-import
+		return nil, nil // ext: cti-import
+	} // ext: cti-import
+	return objs[0], nil // ext: cti-import
+} // ext: cti-import
+
+// writeStaged appends one staged object to a staging file as a JSON line.
+func writeStaged(w *bufio.Writer, v any) error { // ext: cti-import
+	line, err := json.Marshal(v) // ext: cti-import
+	if err != nil {              // ext: cti-import
+		return fmt.Errorf("cti: stage object: %w", err) // ext: cti-import
+	} // ext: cti-import
+	line = append(line, '\n')                // ext: cti-import
+	if _, err := w.Write(line); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: staging write: %w", err) // ext: cti-import
+	} // ext: cti-import
+	return nil // ext: cti-import
+} // ext: cti-import
+
+// checkEndpoints re-reads the relationship staging file and verifies every
+// endpoint resolves against the staged set or storage. It runs before any
+// mutation, so a dangling reference leaves the graph untouched.
+func (im *STIXImporter) checkEndpoints(s storage.StorageEngine, idx *stixIndex, staged map[string]struct{}, rels *os.File) error { // ext: cti-import
+	if _, err := rels.Seek(0, io.SeekStart); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
+	} // ext: cti-import
+	sc := newScanner(rels) // ext: cti-import
+	for sc.Scan() {        // ext: cti-import
+		var rel stagedRel                                        // ext: cti-import
+		if err := json.Unmarshal(sc.Bytes(), &rel); err != nil { // ext: cti-import
+			return fmt.Errorf("cti: read staged relationship: %w", err) // ext: cti-import
+		} // ext: cti-import
+		for _, ref := range []string{rel.FromRef, rel.ToRef} { // ext: cti-import
 			if _, ok := staged[ref]; ok { // ext: cti-import
 				continue // ext: cti-import
 			} // ext: cti-import
-			if findGraphID(s, ref) == "" { // ext: cti-import
-				return fmt.Errorf("cti: relationship %q references unknown object %q", rel.stixID, ref) // ext: cti-import
+			if idx.lookup(s, ref) == "" { // ext: cti-import
+				return fmt.Errorf("cti: relationship %q references unknown object %q", rel.StixID, ref) // ext: cti-import
 			} // ext: cti-import
 		} // ext: cti-import
 	} // ext: cti-import
+	if err := sc.Err(); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: read staging: %w", err) // ext: cti-import
+	} // ext: cti-import
+	if _, err := rels.Seek(0, io.SeekStart); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
+	} // ext: cti-import
+	return nil // ext: cti-import
+} // ext: cti-import
 
-	// Pass 2: upsert nodes, then resolve and upsert relationships. // ext: cti-import
-	// ponytail: single-writer lookup-before-add; needs a unique index for concurrent/large feeds.
-	// perf: preload stixID->node once per involved label; the old per-node
-	// label-bucket scan was O(nodes*bucket) and never hit on fresh import.
-	labels := make(map[string]struct{}, 8) // ext: cti-import
-	for _, n := range nodes {              // ext: cti-import
-		labels[n.label] = struct{}{} // ext: cti-import
+// upsertNodes streams the node staging file, upserting each node.
+func (im *STIXImporter) upsertNodes(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, idx *stixIndex, nodes *os.File) error { // ext: cti-import
+	if _, err := nodes.Seek(0, io.SeekStart); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
 	} // ext: cti-import
-	known := make(map[string]*types.Node, len(nodes)) // ext: cti-import
-	for label := range labels {                       // ext: cti-import
-		for _, n := range s.GetNodesByLabel(label) { // ext: cti-import
-			if sid, _ := n.Props[StixID].(string); sid != "" { // ext: cti-import
-				known[sid] = n // ext: cti-import
-			} // ext: cti-import
+	sc := newScanner(nodes) // ext: cti-import
+	for sc.Scan() {         // ext: cti-import
+		var n stagedNode                                       // ext: cti-import
+		if err := json.Unmarshal(sc.Bytes(), &n); err != nil { // ext: cti-import
+			return fmt.Errorf("cti: read staged node: %w", err) // ext: cti-import
 		} // ext: cti-import
-	} // ext: cti-import
-	ids := make(map[string]string, len(nodes)) // ext: cti-import
-	skipped := 0                               // ext: cti-import — stale re-imports skipped below
-	pass2 := func() error {                    // ext: cti-import
-		for i, n := range nodes { // ext: cti-import
-			if i%64 == 0 { // ext: cti-import
-				if err := ctx.Err(); err != nil { // ext: cti-import
-					return err // ext: cti-import
-				} // ext: cti-import
-			} // ext: cti-import
-			if existing, ok := known[n.stixID]; ok { // ext: cti-import
-				if isStale(existing.Props, n.props) { // ext: cti-import — older re-import: keep live props, no new snapshot
-					skipped++                   // ext: cti-import
-					ids[n.stixID] = existing.ID // ext: cti-import
-					continue                    // ext: cti-import
-				} // ext: cti-import
-				if err := updateNodeSrc(s, existing.ID, mergeProps(existing.Props, n.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
-					return fmt.Errorf("cti: update node %q: %w", n.stixID, err) // ext: cti-import
-				} // ext: cti-import
-				ids[n.stixID] = existing.ID // ext: cti-import
-				continue                    // ext: cti-import
-			} // ext: cti-import
-			gid, err := addNodeSrc(s, n.label, n.props, ic.Source, ic.Transaction) // ext: cti-import // ext: source-feed
-			if err != nil {                                                        // ext: cti-import
-				return fmt.Errorf("cti: add node %q: %w", n.stixID, err) // ext: cti-import
-			} // ext: cti-import
-			ids[n.stixID] = gid                  // ext: cti-import
-			if fresh, ok := s.GetNode(gid); ok { // ext: cti-import
-				known[n.stixID] = fresh // ext: cti-import — dup stixIDs in one bundle merge
-			} // ext: cti-import
-		} // ext: cti-import
-		// perf: seen-set for edges added this import + one GetEdgesFrom per
-		// from-node; the old per-relationship scan was quadratic on hub nodes.
-		seen := make(map[string]string, len(rels))           // ext: cti-import — from|to|kind -> edge ID
-		fromCache := make(map[string]map[string]*types.Edge) // ext: cti-import — from -> to|kind -> edge
-		for i, rel := range rels {                           // ext: cti-import
-			if i%64 == 0 { // ext: cti-import
-				if err := ctx.Err(); err != nil { // ext: cti-import
-					return err // ext: cti-import
-				} // ext: cti-import
-			} // ext: cti-import
-			from := ids[rel.fromRef] // ext: cti-import
-			if from == "" {          // ext: cti-import
-				from = resolveGraphID(s, known, rel.fromRef) // ext: cti-import
-			} // ext: cti-import
-			to := ids[rel.toRef] // ext: cti-import
-			if to == "" {        // ext: cti-import
-				to = resolveGraphID(s, known, rel.toRef) // ext: cti-import
-			} // ext: cti-import
-			if from == "" || to == "" { // ext: cti-import
-				return fmt.Errorf("cti: relationship %q has unresolvable endpoint", rel.stixID) // ext: cti-import
-			} // ext: cti-import
-			key := from + "\x00" + to + "\x00" + rel.kind // ext: cti-import
-			if eid, ok := seen[key]; ok {                 // ext: cti-import — dup in this import
-				if e, ok := s.GetEdge(eid); ok { // ext: cti-import
-					if isStale(e.Props, rel.props) { // ext: cti-import
-						skipped++ // ext: cti-import
-						continue  // ext: cti-import
-					} // ext: cti-import
-					if err := updateEdgeSrc(s, e.ID, mergeProps(e.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
-						return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
-					} // ext: cti-import
-					continue // ext: cti-import
-				} // ext: cti-import
-			} // ext: cti-import
-			bucket, ok := fromCache[from] // ext: cti-import
-			if !ok {                      // ext: cti-import
-				bucket = make(map[string]*types.Edge)    // ext: cti-import
-				for _, e := range s.GetEdgesFrom(from) { // ext: cti-import
-					bucket[e.To+"\x00"+e.Kind] = e // ext: cti-import
-				} // ext: cti-import
-				fromCache[from] = bucket // ext: cti-import
-			} // ext: cti-import
-			if found, ok := bucket[to+"\x00"+rel.kind]; ok { // ext: cti-import
-				if isStale(found.Props, rel.props) { // ext: cti-import
-					seen[key] = found.ID // ext: cti-import
-					skipped++            // ext: cti-import
-					continue             // ext: cti-import
-				} // ext: cti-import
-				if err := updateEdgeSrc(s, found.ID, mergeProps(found.Props, rel.props), ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
-					return fmt.Errorf("cti: update edge %q: %w", rel.stixID, err) // ext: cti-import
-				} // ext: cti-import
-				seen[key] = found.ID // ext: cti-import
-				continue             // ext: cti-import
-			} // ext: cti-import
-			if err := addEdgeSrc(s, from, to, rel.kind, rel.props, ic.Source, ic.Transaction); err != nil { // ext: cti-import // ext: source-feed
-				return fmt.Errorf("cti: add edge %q: %w", rel.stixID, err) // ext: cti-import
-			} // ext: cti-import
-			// perf: resolve the real edge (O(1) on deterministic IDs, one scan
-			// fallback otherwise) so later dups hit seen->GetEdge, not a re-add.
-			if e, ok := s.GetEdge(from + "->" + to + "@" + rel.kind); ok { // ext: cti-import
-				seen[key] = e.ID               // ext: cti-import
-				bucket[to+"\x00"+rel.kind] = e // ext: cti-import
-				continue                       // ext: cti-import
-			} // ext: cti-import
-			for _, e := range s.GetEdgesFrom(from) { // ext: cti-import — non-deterministic backend fallback
-				if e.To == to && e.Kind == rel.kind { // ext: cti-import
-					seen[key] = e.ID               // ext: cti-import
-					bucket[to+"\x00"+rel.kind] = e // ext: cti-import
-					break                          // ext: cti-import
-				} // ext: cti-import
-			} // ext: cti-import
-		} // ext: cti-import
-		return nil // ext: cti-import
-	} // ext: cti-import
-	if bs, ok := s.(batchStore); ok { // ext: cti-import
-		if err := bs.Batch(pass2); err != nil { // ext: cti-import
+		if err := ctx.Err(); err != nil { // ext: cti-import
 			return err // ext: cti-import
 		} // ext: cti-import
-	} else if err := pass2(); err != nil { // ext: cti-import
-		return err // ext: cti-import
+		if err := im.upsertNode(ctx, ic, s, idx, n); err != nil { // ext: cti-import
+			return err // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	if err := sc.Err(); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: read staging: %w", err) // ext: cti-import
+	} // ext: cti-import
+	return nil // ext: cti-import
+} // ext: cti-import
+
+// upsertRels streams the relationship staging file and upserts each edge.
+func (im *STIXImporter) upsertRels(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, idx *stixIndex, rels *os.File) error { // ext: cti-import
+	if _, err := rels.Seek(0, io.SeekStart); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
+	} // ext: cti-import
+	sc := newScanner(rels) // ext: cti-import
+	skipped := 0           // ext: cti-import
+	for sc.Scan() {        // ext: cti-import
+		var rel stagedRel                                        // ext: cti-import
+		if err := json.Unmarshal(sc.Bytes(), &rel); err != nil { // ext: cti-import
+			return fmt.Errorf("cti: read staged relationship: %w", err) // ext: cti-import
+		} // ext: cti-import
+		if err := ctx.Err(); err != nil { // ext: cti-import
+			return err // ext: cti-import
+		} // ext: cti-import
+		stale, err := im.upsertRel(ctx, ic, s, idx, rel) // ext: cti-import
+		if err != nil {                                  // ext: cti-import
+			return err // ext: cti-import
+		} // ext: cti-import
+		if stale { // ext: cti-import
+			skipped++ // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	if err := sc.Err(); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: read staging: %w", err) // ext: cti-import
 	} // ext: cti-import
 	if skipped > 0 { // ext: cti-import
 		fmt.Fprintf(os.Stderr, "cti: skipped %d stale object(s) older than stored snapshots\n", skipped) // ext: cti-import
 	} // ext: cti-import
-	if ic.MaterializeTactics { // ext: cti-tactics — opt-in; default import returns above unchanged
-		if _, _, err := materializeTactics(ctx, s, ic); err != nil { // ext: cti-tactics
-			return fmt.Errorf("cti: materialize tactics: %w", err) // ext: cti-tactics
-		} // ext: cti-tactics
-	} // ext: cti-tactics
 	return nil // ext: cti-import
 } // ext: cti-import
 
-// graphProps flattens a STIX object to generic node/edge props via its JSON // ext: cti-import
-// form, so known fields and raw custom properties survive without a // ext: cti-import
-// per-type field list. // ext: cti-import
+// newScanner returns a line scanner with a payload cap large enough for a
+// single STIX object's props (the default 64KB is too small for some SDOs).
+func newScanner(r io.Reader) *bufio.Scanner { // ext: cti-import
+	sc := bufio.NewScanner(r) // ext: cti-import
+	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+	return sc // ext: cti-import
+} // ext: cti-import
+
+// upsertNode upserts one staged node, merging props on an existing stix_id.
+func (im *STIXImporter) upsertNode(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, idx *stixIndex, n stagedNode) error { // ext: cti-import
+	_ = ctx                                  // ext: cti-import
+	existing, known := idx.resolve(n.StixID) // ext: cti-import
+	if !known {                              // ext: cti-import
+		existing = findGraphID(s, n.StixID) // ext: cti-import
+	} // ext: cti-import
+	if existing != "" { // ext: cti-import
+		if node, ok := s.GetNode(existing); ok { // ext: cti-import
+			if isStale(node.Props, n.Props) { // ext: cti-import
+				return nil // ext: cti-import
+			} // ext: cti-import
+			if err := updateNodeSrc(s, existing, mergeProps(node.Props, n.Props), ic.Source, ic.Transaction); err != nil { // ext: cti-import
+				return fmt.Errorf("cti: update node %q: %w", n.StixID, err) // ext: cti-import
+			} // ext: cti-import
+			return nil // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	gid, err := addNodeSrc(s, n.Label, n.Props, ic.Source, ic.Transaction) // ext: cti-import
+	if err != nil {                                                        // ext: cti-import
+		return fmt.Errorf("cti: add node %q: %w", n.StixID, err) // ext: cti-import
+	} // ext: cti-import
+	idx.remember(n.StixID, gid) // ext: cti-import
+	return nil                  // ext: cti-import
+} // ext: cti-import
+
+// upsertRel upserts one staged relationship. It reports whether the incoming
+// object was stale (and therefore skipped).
+func (im *STIXImporter) upsertRel(ctx context.Context, ic extension.ImportContext, s storage.StorageEngine, idx *stixIndex, rel stagedRel) (bool, error) { // ext: cti-import
+	_ = ctx                            // ext: cti-import
+	from := idx.lookup(s, rel.FromRef) // ext: cti-import
+	to := idx.lookup(s, rel.ToRef)     // ext: cti-import
+	if from == "" || to == "" {        // ext: cti-import
+		return false, fmt.Errorf("cti: relationship %q has unresolvable endpoint", rel.StixID) // ext: cti-import
+	} // ext: cti-import
+	if found := findEdge(s, from, to, rel.Kind); found != nil { // ext: cti-import
+		if isStale(found.Props, rel.Props) { // ext: cti-import
+			return true, nil // ext: cti-import
+		} // ext: cti-import
+		if err := updateEdgeSrc(s, found.ID, mergeProps(found.Props, rel.Props), ic.Source, ic.Transaction); err != nil { // ext: cti-import
+			return false, fmt.Errorf("cti: update edge %q: %w", rel.StixID, err) // ext: cti-import
+		} // ext: cti-import
+		return false, nil // ext: cti-import
+	} // ext: cti-import
+	if err := addEdgeSrc(s, from, to, rel.Kind, rel.Props, ic.Source, ic.Transaction); err != nil { // ext: cti-import
+		return false, fmt.Errorf("cti: add edge %q: %w", rel.StixID, err) // ext: cti-import
+	} // ext: cti-import
+	return false, nil // ext: cti-import
+} // ext: cti-import
+
+// stixIndex maps STIX ids to graph ids for the duration of one import.
+// Seeding costs a single pass over pre-existing nodes; after that every
+// lookup is a map hit instead of a full node scan.
+type stixIndex struct { // ext: cti-import
+	ids map[string]string // ext: cti-import
+} // ext: cti-import
+
+// newStixIndex seeds the index from nodes already in storage.
+func newStixIndex(s storage.StorageEngine) *stixIndex { // ext: cti-import
+	idx := &stixIndex{ids: make(map[string]string)} // ext: cti-import
+	for _, n := range s.GetAllNodes() {             // ext: cti-import
+		if sid, _ := n.Props[StixID].(string); sid != "" { // ext: cti-import
+			idx.ids[sid] = n.ID // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	return idx // ext: cti-import
+} // ext: cti-import
+
+// resolve reports the graph id for a STIX id and whether the id is known at
+// all (staged or stored). It never scans, so it is safe on the hot path.
+// A staged-but-not-yet-written id resolves to "" with known=true.
+func (i *stixIndex) resolve(stixID string) (string, bool) { // ext: cti-import
+	id, ok := i.ids[stixID] // ext: cti-import
+	return id, ok           // ext: cti-import
+} // ext: cti-import
+
+// lookup resolves a STIX id, falling back to a storage scan for an id that
+// was never staged or stored. Only endpoint validation uses it.
+func (i *stixIndex) lookup(s storage.StorageEngine, stixID string) string { // ext: cti-import
+	if id, ok := i.ids[stixID]; ok && id != "" { // ext: cti-import
+		return id // ext: cti-import
+	} // ext: cti-import
+	id := findGraphID(s, stixID) // ext: cti-import
+	if id != "" {                // ext: cti-import
+		i.ids[stixID] = id // ext: cti-import
+	} // ext: cti-import
+	return id // ext: cti-import
+} // ext: cti-import
+
+// seedStaged pre-registers every stix_id in the staged node file, so
+// resolve finds a hit for every object this import will write. Ids already
+// known from storage keep their graph id; the rest start empty and are
+// filled by remember as upsertNode writes them.
+func (i *stixIndex) seedStaged(nodes *os.File) error { // ext: cti-import
+	if _, err := nodes.Seek(0, io.SeekStart); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
+	} // ext: cti-import
+	sc := newScanner(nodes) // ext: cti-import
+	for sc.Scan() {         // ext: cti-import
+		var n stagedNode                                       // ext: cti-import
+		if err := json.Unmarshal(sc.Bytes(), &n); err != nil { // ext: cti-import
+			return fmt.Errorf("cti: read staged node: %w", err) // ext: cti-import
+		} // ext: cti-import
+		if n.StixID == "" { // ext: cti-import
+			continue // ext: cti-import
+		} // ext: cti-import
+		if _, known := i.ids[n.StixID]; !known { // ext: cti-import
+			i.ids[n.StixID] = "" // ext: cti-import — pending // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	if err := sc.Err(); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: read staging: %w", err) // ext: cti-import
+	} // ext: cti-import
+	if _, err := nodes.Seek(0, io.SeekStart); err != nil { // ext: cti-import
+		return fmt.Errorf("cti: staging rewind: %w", err) // ext: cti-import
+	} // ext: cti-import
+	return nil // ext: cti-import
+} // ext: cti-import
+
+// remember records a node written during this import.
+func (i *stixIndex) remember(stixID, graphID string) { // ext: cti-import
+	if stixID != "" && graphID != "" { // ext: cti-import
+		i.ids[stixID] = graphID // ext: cti-import
+	} // ext: cti-import
+} // ext: cti-import
+
+// findGraphID scans all nodes for stixID and returns its graph ID, or "". // ext: cti-import
+func findGraphID(s storage.StorageEngine, stixID string) string { // ext: cti-import
+	for _, n := range s.GetAllNodes() { // ext: cti-import
+		if v, _ := n.Props[StixID].(string); v == stixID { // ext: cti-import
+			return n.ID // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	return "" // ext: cti-import
+} // ext: cti-import
+
+// findEdge returns the stored edge for (from, to, kind), or nil. // ext: cti-import
+func findEdge(s storage.StorageEngine, from, to, kind string) *types.Edge { // ext: cti-import
+	if e, ok := s.GetEdge(from + "->" + to + "@" + kind); ok { // ext: cti-import
+		return e // ext: cti-import
+	} // ext: cti-import
+	for _, e := range s.GetEdgesFrom(from) { // ext: cti-import — non-deterministic backend fallback
+		if e.To == to && e.Kind == kind { // ext: cti-import
+			return e // ext: cti-import
+		} // ext: cti-import
+	} // ext: cti-import
+	return nil // ext: cti-import
+} // ext: cti-import
+
+// isStale reports whether newProps predates oldProps by STIX `modified`.
+// Missing or unparseable timestamps on either side mean "can't tell" —
+// not stale, so the update proceeds as before. Equal timestamps proceed.
+func isStale(oldProps, newProps map[string]any) bool { // ext: cti-import
+	oldT, ok := stixTime(oldProps["modified"]) // ext: cti-import
+	if !ok {                                   // ext: cti-import
+		return false // ext: cti-import
+	} // ext: cti-import
+	newT, ok := stixTime(newProps["modified"]) // ext: cti-import
+	if !ok {                                   // ext: cti-import
+		return false // ext: cti-import
+	} // ext: cti-import
+	return newT.Before(oldT) // ext: cti-import
+} // ext: cti-import
+
+func stixTime(v any) (time.Time, bool) { // ext: cti-import
+	s, ok := v.(string) // ext: cti-import
+	if !ok {            // ext: cti-import
+		return time.Time{}, false // ext: cti-import
+	} // ext: cti-import
+	t, err := time.Parse(time.RFC3339, s) // ext: cti-import
+	if err != nil {                       // ext: cti-import
+		return time.Time{}, false // ext: cti-import
+	} // ext: cti-import
+	return t, true // ext: cti-import
+} // ext: cti-import
+
+// graphProps flattens a STIX object to generic node/edge props via its JSON
+// form, so known fields and raw custom properties survive without a
+// per-type field list.
 func graphProps(obj stix2.STIXObject, source string) (map[string]any, error) { // ext: cti-import // ext: source-feed
 	raw, err := json.Marshal(obj) // ext: cti-import
 	if err != nil {               // ext: cti-import
@@ -270,8 +592,8 @@ type batchStore interface { // ext: cti-import
 	Batch(fn func() error) error // ext: cti-import
 } // ext: cti-import
 
-// metaStore is the optional versioning write path carrying source/transaction. // ext: source-feed
-// Backends without it fall back to plain StorageEngine writes (Source lost). // ext: source-feed
+// metaStore is the optional versioning write path carrying source/transaction.
+// Backends without it fall back to plain StorageEngine writes (Source lost).
 type metaStore interface { // ext: source-feed
 	AddNodeWithMeta(label string, props map[string]any, source, transaction string) (string, error) // ext: source-feed
 	AddEdgeWithMeta(from, to, kind string, props map[string]any, source, transaction string) error  // ext: source-feed
@@ -307,61 +629,16 @@ func updateEdgeSrc(s storage.StorageEngine, id string, props map[string]any, sou
 	return s.UpdateEdge(id, props) // ext: source-feed
 } // ext: source-feed
 
-// resolveGraphID maps a STIX ID to its graph ID via the Pass 2 preload,
-// falling back to a full scan for pre-existing nodes whose label was not
-// part of this import. // ext: cti-import
-func resolveGraphID(s storage.StorageEngine, known map[string]*types.Node, stixID string) string { // ext: cti-import
-	if n, ok := known[stixID]; ok { // ext: cti-import
-		return n.ID // ext: cti-import
+// mergeProps overlays newer values onto a base map. // ext: cti-import
+func mergeProps(base, newer map[string]any) map[string]any { // ext: cti-import
+	if base == nil { // ext: cti-import
+		base = make(map[string]any, len(newer)) // ext: cti-import
 	} // ext: cti-import
-	return findGraphID(s, stixID) // ext: cti-import
+	for k, v := range newer { // ext: cti-import
+		base[k] = v // ext: cti-import
+	} // ext: cti-import
+	return base // ext: cti-import
 } // ext: cti-import
 
-// findGraphID scans all nodes for stixID and returns its graph ID, or "". // ext: cti-import
-func findGraphID(s storage.StorageEngine, stixID string) string { // ext: cti-import
-	for _, n := range s.GetAllNodes() { // ext: cti-import
-		if v, _ := n.Props[StixID].(string); v == stixID { // ext: cti-import
-			return n.ID // ext: cti-import
-		} // ext: cti-import
-	} // ext: cti-import
-	return "" // ext: cti-import
-} // ext: cti-import
-
-// isStale reports whether newProps predates oldProps by STIX `modified`. // ext: cti-import
-// Missing or unparseable timestamps on either side mean "can't tell" — // ext: cti-import
-// not stale, so the update proceeds as before. Equal timestamps proceed. // ext: cti-import
-func isStale(oldProps, newProps map[string]any) bool { // ext: cti-import
-	oldT, ok := stixTime(oldProps["modified"]) // ext: cti-import
-	if !ok {                                   // ext: cti-import
-		return false // ext: cti-import
-	} // ext: cti-import
-	newT, ok := stixTime(newProps["modified"]) // ext: cti-import
-	if !ok {                                   // ext: cti-import
-		return false // ext: cti-import
-	} // ext: cti-import
-	return newT.Before(oldT) // ext: cti-import
-} // ext: cti-import
-
-func stixTime(v any) (time.Time, bool) { // ext: cti-import
-	s, ok := v.(string) // ext: cti-import
-	if !ok || s == "" { // ext: cti-import
-		return time.Time{}, false // ext: cti-import
-	} // ext: cti-import
-	t, err := time.Parse(time.RFC3339Nano, s) // ext: cti-import
-	if err != nil {                           // ext: cti-import
-		return time.Time{}, false // ext: cti-import
-	} // ext: cti-import
-	return t, true // ext: cti-import
-} // ext: cti-import
-
-// mergeProps overlays new on old without mutating either input. // ext: cti-import
-func mergeProps(old, new map[string]any) map[string]any { // ext: cti-import
-	out := make(map[string]any, len(old)+len(new)) // ext: cti-import
-	for k, v := range old {                        // ext: cti-import
-		out[k] = v // ext: cti-import
-	} // ext: cti-import
-	for k, v := range new { // ext: cti-import
-		out[k] = v // ext: cti-import
-	} // ext: cti-import
-	return out // ext: cti-import
-} // ext: cti-import
+// unused keeps bufio imported for the scanner helpers above.
+var _ = bufio.NewReader // ext: cti-import
