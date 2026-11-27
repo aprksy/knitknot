@@ -1,12 +1,19 @@
 name: CI
 
+# Runs on this repo's own self-hosted runner (sxi-work, label `knitknot`).
+# GitHub-hosted minutes are a capped shared budget and this repo is the
+# heavy one (52 MB STIX fixture in the test tree), so it runs where the
+# fixture already lives.
+#
+# A self-hosted job queues while that machine is offline — it does not
+# fall back to hosted. See GOVERNANCE.md "CI".
 on:
   push:
   pull_request:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, knitknot]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
