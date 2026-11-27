@@ -314,13 +314,18 @@ point; there is no shared filesystem.
 
 ## CI
 
-GitHub Actions, on hosted runners. One job: `test` (build + vet + gofmt + go
-test).
+GitHub Actions, on this repo's own self-hosted runner: `runs-on: [self-hosted,
+linux, knitknot]` (sxi-work). One job: `test` (build + vet + gofmt + go test).
 
-A self-hosted runner on `sxi-work` is available by adding its label. **A
-self-hosted job queues while that machine is offline — it does not fall back to
-hosted.** Prefer hosted unless you specifically need that machine.
+Hosted runners are the fallback of last resort, not the default: the account's
+hosted minutes are a capped shared budget, and this repo is the fleet's heavy
+lane (a 52 MB STIX fixture sits in the test tree), so the work runs where the
+fixture already lives.
 
-Self-hosted runners execute arbitrary workflow code as the local user. Never
-enable one for a public repository — **this repository is public**, so do not
-add a self-hosted runner lane.
+**A self-hosted job queues while that machine is offline — it does not fall
+back to hosted.** A queued run is not a failure; check the runner before
+concluding the job is broken.
+
+Self-hosted runners execute arbitrary workflow code as the local user. Keep the
+workflow set small and review any change to `.github/workflows/` as you would a
+code change.
